@@ -60,7 +60,7 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
           // Animate from the locked scale to 0
           _scale = lerpDouble(_scaleAtDismiss, 0.0, _scaleCtrl.value)!;
           // Animate border radius from locked to 50 (fully rounded) as it shrinks
-          _clipRadius = lerpDouble(_minRadius, 50.0, _scaleCtrl.value)!;
+          _clipRadius = lerpDouble(_minRadius, 80.0, _scaleCtrl.value)!;
         });
       }
     });
@@ -151,10 +151,52 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
   }
 
   void _animateWithFriction(Offset velocity) {
-    final size = MediaQuery.of(context).size;
-    final distance = Offset(size.width * 1.2 * velocity.dx.sign, size.height * 1.2 * velocity.dy.sign);
-    final target = _offset + distance;
-    _animateTo(target, dismiss: true);
+    _springTicker?.dispose();
+    _springTicker = null;
+
+    final begin = _offset;
+    final beginRadius = _clipRadius;
+    final beginScale = _scale;
+
+    // Boost and accelerate velocity
+    const minVelocity = 1200.0;
+    const velocityMultiplier = 2.0;
+    Offset boostedVelocity = velocity * velocityMultiplier;
+    if (velocity.distance < minVelocity) {
+      final direction = velocity.distance == 0 ? Offset(0, 1) : velocity / velocity.distance;
+      boostedVelocity = direction * minVelocity * velocityMultiplier;
+    }
+
+    final simX = FrictionSimulation(0.135, begin.dx, boostedVelocity.dx);
+    final simY = FrictionSimulation(0.135, begin.dy, boostedVelocity.dy);
+
+    bool fadeStarted = false;
+
+    _springTicker = createTicker((elapsed) {
+      final t = elapsed.inMilliseconds / 1000.0;
+      final x = simX.x(t);
+      final y = simY.x(t);
+
+      setState(() {
+        _offset = Offset(x, y);
+        _clipRadius = beginRadius;
+        _scale = beginScale;
+      });
+
+      final size = MediaQuery.of(context).size;
+      if (!fadeStarted && (x.abs() > size.width * 0.7 || y.abs() > size.height * 0.7)) {
+        fadeStarted = true;
+        _bgOpacityCtrl.duration = const Duration(milliseconds: 400); // Make fade-out always smooth
+        _bgOpacityCtrl.reverse(from: _bgOpacityCtrl.value);
+        _bgOpacityCtrl.addStatusListener((status) {
+          if (status == AnimationStatus.dismissed && !_isDismissing) {
+            _isDismissing = true;
+            widget.onDismissed?.call();
+          }
+        });
+      }
+    });
+    _springTicker?.start();
   }
 
   void _animateTo(Offset target, {bool dismiss = false}) {
@@ -244,15 +286,23 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     }
 
     return Material(
-      color: Colors.black54.withOpacity(_bgOpacity * 0.5),
-      child: GestureDetector(
-        onTap: widget.onDismissed,
-        child: Stack(
-          children: [
-            Positioned.fill(child: Container(color: Colors.transparent)),
-            GestureDetector(onPanUpdate: _onPanUpdate, onPanEnd: _onPanEnd, child: child),
-          ],
-        ),
+      color: Colors.transparent,
+      child: Stack(
+        children: [
+          IgnorePointer(ignoring: true, child: Container(color: Colors.black54.withOpacity(_bgOpacity * 0.5))),
+          if (widget.shrinkWrap)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: SizedBox(
+                width: MediaQuery.of(context).size.width,
+                child: GestureDetector(onPanUpdate: _onPanUpdate, onPanEnd: _onPanEnd, child: child),
+              ),
+            )
+          else
+            SizedBox.expand(child: GestureDetector(onPanUpdate: _onPanUpdate, onPanEnd: _onPanEnd, child: child)),
+        ],
       ),
     );
   }
