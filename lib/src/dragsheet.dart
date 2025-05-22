@@ -249,7 +249,13 @@ class DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       scale = 1.0 - (1.0 - minScale) * tVert;
     }
 
+    // Calculate opacity: 1.0 at scale 1.0 or above, 0.75 at scale 0.75
+    final minOpacity = 0.75;
+    final opacity = minOpacity + ((scale - minScale) / (1.0 - minScale)) * (1.0 - minOpacity);
+
     Widget sheetContent = ClipRRect(borderRadius: borderRadius, child: widget.builder(ctx));
+
+    sheetContent = Opacity(opacity: opacity.clamp(minOpacity, 1.0), child: sheetContent);
 
     sheetContent = Transform.scale(scale: scale, alignment: Alignment.topCenter, child: sheetContent);
 
