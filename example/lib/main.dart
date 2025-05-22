@@ -27,11 +27,8 @@ class _DemoState extends State<Demo> {
   void _showSheet() {
     controller.show(
       context,
-      (ctx) => Container(
-        color: Colors.blue,
-        child: const Center(child: Text("hullo wurld", style: TextStyle(color: Colors.white, fontSize: 32))),
-      ),
-      shrinkWrap: true,
+      (ctx) => MySheetContent(),
+      shrinkWrap: false, // or false if you want a fixed size
     );
   }
 
@@ -49,6 +46,19 @@ class _DemoState extends State<Demo> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class MySheetContent extends StatelessWidget {
+  const MySheetContent({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(color: Colors.blue),
+      child: const Center(child: Text("hullo wurld", style: TextStyle(color: Colors.white, fontSize: 32))),
     );
   }
 }
