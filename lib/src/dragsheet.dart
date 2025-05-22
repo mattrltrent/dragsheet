@@ -7,19 +7,52 @@ class DragSheetController {
   OverlayEntry? _entry;
   GlobalKey<_DragSheetState>? _sheetKey;
 
-  void show(BuildContext context, WidgetBuilder builder, {bool shrinkWrap = false}) {
+  void show(
+    BuildContext context,
+    WidgetBuilder builder, {
+    bool shrinkWrap = false,
+    double minScale = 0.75,
+    double maxScale = 1.0,
+    double minRadius = 0.0,
+    double maxRadius = 50.0,
+    double minOpacity = 0.0,
+    double maxOpacity = 0.5,
+    Duration entranceDuration = const Duration(milliseconds: 200),
+    Duration exitDuration = const Duration(milliseconds: 200),
+    Duration gestureFadeDuration = const Duration(milliseconds: 300),
+    Duration programmaticFadeDuration = const Duration(milliseconds: 1000),
+    double effectDistance = 120.0,
+  }) {
     dismiss();
     _sheetKey = GlobalKey<_DragSheetState>();
     _entry = OverlayEntry(
-      builder: (ctx) => DragSheet(key: _sheetKey, builder: builder, shrinkWrap: shrinkWrap, onDismissed: dismiss),
+      builder:
+          (ctx) => DragSheet(
+            key: _sheetKey,
+            builder: builder,
+            shrinkWrap: shrinkWrap,
+            onDismissed: _removeEntry,
+            minScale: minScale,
+            maxScale: maxScale,
+            minRadius: minRadius,
+            maxRadius: maxRadius,
+            minOpacity: minOpacity,
+            maxOpacity: maxOpacity,
+            entranceDuration: entranceDuration,
+            exitDuration: exitDuration,
+            gestureFadeDuration: gestureFadeDuration,
+            programmaticFadeDuration: programmaticFadeDuration,
+            effectDistance: effectDistance,
+          ),
     );
     Overlay.of(context).insert(_entry!);
   }
 
   void dismiss() {
-    // Animate out if possible
     _sheetKey?.currentState?.animateDismiss();
-    // If already animating or gone, remove overlay
+  }
+
+  void _removeEntry() {
     final entry = _entry;
     _entry = null;
     entry?.remove();
@@ -31,7 +64,36 @@ class DragSheet extends StatefulWidget {
   final bool shrinkWrap;
   final VoidCallback? onDismissed;
 
-  const DragSheet({super.key, required this.builder, this.shrinkWrap = false, this.onDismissed});
+  // Configurable constants
+  final double minScale;
+  final double maxScale;
+  final double minRadius;
+  final double maxRadius;
+  final double minOpacity;
+  final double maxOpacity;
+  final Duration entranceDuration;
+  final Duration exitDuration;
+  final Duration gestureFadeDuration;
+  final Duration programmaticFadeDuration;
+  final double effectDistance;
+
+  const DragSheet({
+    Key? key,
+    required this.builder,
+    required this.shrinkWrap,
+    this.onDismissed,
+    this.minScale = 0.75,
+    this.maxScale = 1.0,
+    this.minRadius = 0.0,
+    this.maxRadius = 50.0,
+    this.minOpacity = 0.0,
+    this.maxOpacity = 0.5,
+    this.entranceDuration = const Duration(milliseconds: 200),
+    this.exitDuration = const Duration(milliseconds: 200),
+    this.gestureFadeDuration = const Duration(milliseconds: 300),
+    this.programmaticFadeDuration = const Duration(milliseconds: 1000),
+    this.effectDistance = 120.0,
+  }) : super(key: key);
 
   @override
   State<DragSheet> createState() => _DragSheetState();
@@ -42,13 +104,16 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
   late AnimationController _scaleCtrl;
   late AnimationController _entranceCtrl;
   late AnimationController _bgOpacityCtrl;
+  late AnimationController _exitCtrl;
   late Animation<Offset> _entranceAnim;
+  late Animation<Offset> _exitAnim;
   late Animation<double> _bgOpacityAnim;
   Offset _offset = Offset.zero;
   double _scale = 1.0;
   double _bgOpacity = 1.0;
   bool _isDismissing = false;
   bool _didEntrance = false;
+  bool _isExiting = false;
   double _clipRadius = 0.0;
   Ticker? _springTicker;
 
@@ -88,11 +153,17 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       });
     });
 
-    _entranceCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
+    _entranceCtrl = AnimationController(vsync: this, duration: widget.entranceDuration);
     _entranceAnim = Tween<Offset>(
       begin: Offset(0, 1),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _entranceCtrl, curve: Curves.ease));
+
+    _exitCtrl = AnimationController(vsync: this, duration: widget.exitDuration);
+    _exitAnim = Tween<Offset>(
+      begin: Offset.zero,
+      end: Offset(0, 1),
+    ).animate(CurvedAnimation(parent: _exitCtrl, curve: Curves.ease));
 
     _entranceCtrl.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
@@ -112,19 +183,18 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     _scaleCtrl.dispose();
     _entranceCtrl.dispose();
     _bgOpacityCtrl.dispose();
+    _exitCtrl.dispose();
     _springTicker?.dispose();
     super.dispose();
   }
 
   void _onPanUpdate(DragUpdateDetails d) {
-    const effectDistance = 120.0; // <-- Increase this for a more gradual effect
     setState(() {
       _offset += d.delta;
-      final dist = _offset.distance.clamp(0, effectDistance);
-      final scale = 1.0 - 0.25 * (dist / effectDistance);
-      final radius = 50 * (dist / effectDistance);
+      final dist = _offset.distance.clamp(0, widget.effectDistance);
+      final scale = widget.maxScale - (widget.maxScale - widget.minScale) * (dist / widget.effectDistance);
+      final radius = widget.minRadius + (widget.maxRadius - widget.minRadius) * (dist / widget.effectDistance);
 
-      // Only allow shrinking
       if (scale < _minScale) _minScale = scale;
       if (radius > _minRadius) _minRadius = radius;
 
@@ -167,14 +237,14 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     final beginRadius = _clipRadius;
     final beginScale = _scale;
 
-    // Boost and accelerate velocity
+    // Clamp velocity
     const minVelocity = 1200.0;
+    const maxVelocity = 3500.0;
     const velocityMultiplier = 2.0;
-    Offset boostedVelocity = velocity * velocityMultiplier;
-    if (velocity.distance < minVelocity) {
-      final direction = velocity.distance == 0 ? Offset(0, 1) : velocity / velocity.distance;
-      boostedVelocity = direction * minVelocity * velocityMultiplier;
-    }
+    double speed = velocity.distance * velocityMultiplier;
+    speed = speed.clamp(minVelocity, maxVelocity);
+    final direction = velocity.distance == 0 ? Offset(0, 1) : velocity / velocity.distance;
+    final boostedVelocity = direction * speed;
 
     final simX = FrictionSimulation(0.135, begin.dx, boostedVelocity.dx);
     final simY = FrictionSimulation(0.135, begin.dy, boostedVelocity.dy);
@@ -196,9 +266,9 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       if (!fadeStarted && (x.abs() > size.width * 0.7 || y.abs() > size.height * 0.7)) {
         fadeStarted = true;
         setState(() {
-          _ignoreAllPointers = true; // <--- Add this line
+          _ignoreAllPointers = true;
         });
-        _bgOpacityCtrl.duration = const Duration(milliseconds: 400);
+        _bgOpacityCtrl.duration = widget.gestureFadeDuration; // Use the configured duration!
         _bgOpacityCtrl.reverse(from: _bgOpacityCtrl.value);
         _bgOpacityCtrl.addStatusListener((status) {
           if (status == AnimationStatus.dismissed && !_isDismissing) {
@@ -267,9 +337,10 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     }
   }
 
-  void _animateScaleDown({Duration duration = const Duration(milliseconds: 500)}) {
+  void _animateScaleDown({Duration duration = const Duration(milliseconds: 300)}) {
+    // <-- fast fade for swipe
     setState(() {
-      _ignoreAllPointers = true; // <--- Add this line
+      _ignoreAllPointers = true;
     });
     _bgOpacityCtrl.duration = duration;
     _scaleCtrl.duration = duration;
@@ -277,12 +348,18 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     _scaleCtrl.forward(from: 0);
   }
 
-  void animateDismiss() {
-    if (!_isDismissing) {
+  void animateDismiss() async {
+    if (!_isDismissing && !_isExiting) {
       _isDismissing = true;
-      _scaleAtDismiss = _scale;
-      _minRadius = _clipRadius;
-      _animateScaleDown();
+      _isExiting = true;
+      _bgOpacityCtrl.duration = widget.programmaticFadeDuration;
+      if (_bgOpacityCtrl.value == 0) {
+        _bgOpacityCtrl.value = 1.0;
+      }
+      final fade = _bgOpacityCtrl.reverse(from: _bgOpacityCtrl.value);
+      final slide = _exitCtrl.forward();
+      await Future.wait([fade, slide]);
+      widget.onDismissed?.call();
     }
   }
 
@@ -305,8 +382,11 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       child = Transform.translate(offset: _offset, child: SizedBox.expand(child: child));
     }
 
+    // Animate in or out
     if (!_didEntrance) {
       child = SlideTransition(position: _entranceAnim, child: child);
+    } else if (_isExiting) {
+      child = SlideTransition(position: _exitAnim, child: child);
     }
 
     return IgnorePointer(
@@ -315,9 +395,8 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
         color: Colors.transparent,
         child: Stack(
           children: [
-            // Always fill the background for dimming
-            if (_bgOpacity > 0) Positioned.fill(child: ColoredBox(color: Colors.black54.withOpacity(_bgOpacity * 0.5))),
-            // Sheet: shrinkWrap = bottom, else fullscreen
+            if (_bgOpacity > 0)
+              Positioned.fill(child: ColoredBox(color: Colors.black54.withOpacity(_bgOpacity * widget.maxOpacity))),
             if (widget.shrinkWrap)
               Positioned(
                 bottom: 0,

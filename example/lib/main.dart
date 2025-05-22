@@ -27,13 +27,17 @@ class _DemoState extends State<Demo> {
   void _showSheet() {
     controller.show(
       context,
-      (ctx) => MySheetContent(
-        action: () {
-          controller.dismiss();
-        },
-      ),
-
-      shrinkWrap: true, // or false if you want a fixed size
+      (ctx) => MySheetContent(action: () => controller.dismiss()),
+      shrinkWrap: false,
+      minScale: 0.8,
+      maxScale: 1.0,
+      minRadius: 8.0,
+      maxRadius: 40.0,
+      entranceDuration: Duration(milliseconds: 400),
+      exitDuration: Duration(milliseconds: 400),
+      gestureFadeDuration: Duration(milliseconds: 200),
+      programmaticFadeDuration: Duration(milliseconds: 1200),
+      effectDistance: 150.0,
     );
   }
 
