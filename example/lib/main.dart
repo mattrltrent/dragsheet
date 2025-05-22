@@ -31,7 +31,6 @@ class _DemoState extends State<Demo> {
         color: Colors.blue,
         child: const Center(child: Text("hullo wurld", style: TextStyle(color: Colors.white, fontSize: 32))),
       ),
-      openRatio: 1,
       shrinkWrap: true,
     );
   }

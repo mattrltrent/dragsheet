@@ -11,7 +11,7 @@ class DragSheetController extends ChangeNotifier {
 
     late OverlayEntry entry;
     bool removed = false;
-    bool _isSheetVisible = true; // <-- Add this here
+    bool _isSheetVisible = true;
 
     void removeBlur() {
       if (removed) return;
@@ -24,7 +24,6 @@ class DragSheetController extends ChangeNotifier {
       builder:
           (ctx) => Stack(
             children: [
-              // Only block pointer events if sheet is visible
               if (_isSheetVisible)
                 Positioned.fill(child: AbsorbPointer(absorbing: true, child: Container(color: Colors.transparent))),
               DragSheet(
@@ -32,13 +31,12 @@ class DragSheetController extends ChangeNotifier {
                 openRatio: openRatio,
                 shrinkWrap: shrinkWrap,
                 onStartDismiss: () {
-                  // Set _isSheetVisible to false and rebuild overlay
+                  if (!_isSheetVisible) return;
                   _isSheetVisible = false;
                   entry.markNeedsBuild();
                 },
                 onDismissed: () {
-                  entry.remove();
-                  blurController.dispose();
+                  removeBlur(); // <--- Use the guard here
                 },
               ),
             ],
@@ -70,9 +68,12 @@ class DragSheet extends StatefulWidget {
 
 class DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
   late final AnimationController _ctrl;
+  late AnimationController _blurCtrl;
+  double _blurAnim = 1.0;
   Offset _position = Offset(0, 1);
-  bool _isOpened = false; // <-- Add this
+  bool _isOpened = false;
   bool _isSheetVisible = true;
+  bool _isDismissing = false; // Track if we're flying out
 
   double get openY => 1 - widget.openRatio;
 
@@ -80,6 +81,12 @@ class DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _ctrl = AnimationController.unbounded(vsync: this)..value = _position.dy;
+    _blurCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 400), value: 1.0);
+    _blurCtrl.addListener(() {
+      setState(() {
+        _blurAnim = _blurCtrl.value;
+      });
+    });
     _showSheet();
   }
 
@@ -100,7 +107,7 @@ class DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       }
     });
     future.whenComplete(() {
-      if (mounted) setState(() => _isOpened = true); // <-- Enable animation after open
+      if (mounted) setState(() => _isOpened = true);
     });
   }
 
@@ -120,7 +127,9 @@ class DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     }
 
     if (direction != null) {
-      widget.onStartDismiss?.call(); // <-- Start blur out immediately
+      widget.onStartDismiss?.call();
+      _isDismissing = true;
+      _blurCtrl.animateTo(0.0, duration: const Duration(milliseconds: 400));
 
       final target = Offset(_position.dx + direction.dx * 2.0, _position.dy + direction.dy * 2.0);
       final ctrl = AnimationController.unbounded(vsync: this);
@@ -203,6 +212,7 @@ class DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
   @override
   void dispose() {
     _ctrl.dispose();
+    _blurCtrl.dispose();
     super.dispose();
   }
 
@@ -212,21 +222,36 @@ class DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     final offsetY = size.height * _position.dy;
     final offsetX = size.width * _position.dx;
 
-    // Calculate drag distance relative to the sheet's resting top edge
-    final restPos = Offset(0, openY);
-    final dragDelta = (_position - restPos).distance;
-    final dragDistance = (dragDelta / 0.25).clamp(0.0, 1.0); // 0.25 = how far to reach max effect
+    // Calculate normalized deltas from rest
+    final horizontalDelta = _position.dx.abs();
+    final verticalDelta = (_position.dy - openY).abs();
 
-    // Border radius: 0 at rest, increases as you move
-    final borderRadius = BorderRadius.circular(50 * dragDistance);
+    // Use the largest delta for both border/blur and scale
+    final dragDistance = (horizontalDelta > verticalDelta ? horizontalDelta : verticalDelta) / 0.25;
+    final clampedDrag = dragDistance.clamp(0.0, 1.0);
 
-    // Blur: max at rest, decreases as you move
-    final blurValue = 1.0 - dragDistance;
+    final borderRadius = BorderRadius.circular(50 * clampedDrag);
+    final blurValue = _blurAnim * (1.0 - clampedDrag);
 
-    Widget sheetContent = ClipRRect(
-      borderRadius: borderRadius,
-      child: widget.builder(ctx),
-    );
+    // --- 50% scale spread: 0.75 at bottom, 1.25 at top, 1.0 at openY ---
+    final minScale = 0.75;
+    final maxScale = 1.25;
+
+    // Normalized vertical: -1 at top, 0 at openY, 1 at bottom
+    final tVert = ((_position.dy - openY) / (1.0 - openY)).clamp(-1.0, 1.0);
+
+    double scale;
+    if (tVert < 0) {
+      // Dragged up (top): grow
+      scale = 1.0 + (maxScale - 1.0) * -tVert;
+    } else {
+      // Dragged down (bottom): shrink
+      scale = 1.0 - (1.0 - minScale) * tVert;
+    }
+
+    Widget sheetContent = ClipRRect(borderRadius: borderRadius, child: widget.builder(ctx));
+
+    sheetContent = Transform.scale(scale: scale, alignment: Alignment.topCenter, child: sheetContent);
 
     return Stack(
       children: [
@@ -234,39 +259,27 @@ class DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
         Positioned.fill(
           child: IgnorePointer(
             child: Blur(
-              blur: 12 * blurValue,
+              blur: 8 * blurValue,
               colorOpacity: 0.1 * blurValue,
               child: Container(color: Colors.transparent),
             ),
           ),
         ),
-        if (widget.shrinkWrap)
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Transform.translate(
-              offset: Offset(offsetX, offsetY - size.height), // offsetY is relative to screen, so subtract height
-              child: GestureDetector(
-                onPanUpdate: _handleDragUpdate,
-                onPanEnd: _handleDragEnd,
-                child: sheetContent,
-              ),
-            ),
-          )
-        else
-          Positioned(
-            top: offsetY,
-            left: offsetX,
-            width: size.width,
-            child: GestureDetector(
-              onPanUpdate: _handleDragUpdate,
-              onPanEnd: _handleDragEnd,
-              child: SizedBox(
-                width: size.width,
-                height: size.height * widget.openRatio,
-                child: sheetContent,
-              ),
+        Positioned(
+          top: offsetY,
+          left: offsetX,
+          width: size.width,
+          child: GestureDetector(
+            onPanUpdate: _handleDragUpdate,
+            onPanEnd: _handleDragEnd,
+            child: Material(
+              color: Colors.transparent,
+              shadowColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              child: SizedBox(width: size.width, height: size.height * widget.openRatio, child: sheetContent),
             ),
           ),
+        ),
       ],
     );
   }
