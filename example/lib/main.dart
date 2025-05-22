@@ -27,9 +27,18 @@ class _DemoState extends State<Demo> {
   void _showSheet() {
     controller.show(
       context,
-      (ctx) => MySheetContent(),
-      shrinkWrap: false, // or false if you want a fixed size
+      (ctx) => MySheetContent(
+        action: () {
+          controller.dismiss();
+        },
+      ),
+
+      shrinkWrap: true, // or false if you want a fixed size
     );
+  }
+
+  void _hideSheet() {
+    controller.dismiss();
   }
 
   @override
@@ -42,7 +51,7 @@ class _DemoState extends State<Demo> {
           children: [
             ElevatedButton(onPressed: _showSheet, child: Text("Show Sheet")),
             const SizedBox(height: 16),
-            Text("Press multiple times for stacked sheets.\nEach new sheet dismisses previous ones."),
+            ElevatedButton(onPressed: _hideSheet, child: Text("Hide Sheet")),
           ],
         ),
       ),
@@ -51,7 +60,9 @@ class _DemoState extends State<Demo> {
 }
 
 class MySheetContent extends StatelessWidget {
-  const MySheetContent({super.key});
+  const MySheetContent({super.key, required this.action});
+
+  final VoidCallback action;
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +70,15 @@ class MySheetContent extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(color: Colors.blue),
-      child: const Center(child: Text("hullo wurld", style: TextStyle(color: Colors.white, fontSize: 32))),
+      child: Center(
+        child: Column(
+          children: [
+            Text("hullo wurld", style: TextStyle(color: Colors.white, fontSize: 32)),
+
+            TextButton(onPressed: action, child: Text("close")),
+          ],
+        ),
+      ),
     );
   }
 }

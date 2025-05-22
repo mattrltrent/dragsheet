@@ -5,16 +5,23 @@ import 'package:flutter/scheduler.dart';
 
 class DragSheetController {
   OverlayEntry? _entry;
+  GlobalKey<_DragSheetState>? _sheetKey;
 
   void show(BuildContext context, WidgetBuilder builder, {bool shrinkWrap = false}) {
-    dismiss(); // Remove any previous sheet
-    _entry = OverlayEntry(builder: (ctx) => DragSheet(builder: builder, shrinkWrap: shrinkWrap, onDismissed: dismiss));
+    dismiss();
+    _sheetKey = GlobalKey<_DragSheetState>();
+    _entry = OverlayEntry(
+      builder: (ctx) => DragSheet(key: _sheetKey, builder: builder, shrinkWrap: shrinkWrap, onDismissed: dismiss),
+    );
     Overlay.of(context).insert(_entry!);
   }
 
   void dismiss() {
+    // Animate out if possible
+    _sheetKey?.currentState?.animateDismiss();
+    // If already animating or gone, remove overlay
     final entry = _entry;
-    _entry = null; // <-- Set to null BEFORE removing
+    _entry = null;
     entry?.remove();
   }
 }
@@ -48,6 +55,8 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
   double _minScale = 1.0;
   double _minRadius = 0.0;
   late double _scaleAtDismiss;
+
+  bool _ignoreAllPointers = false;
 
   @override
   void initState() {
@@ -186,7 +195,10 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       final size = MediaQuery.of(context).size;
       if (!fadeStarted && (x.abs() > size.width * 0.7 || y.abs() > size.height * 0.7)) {
         fadeStarted = true;
-        _bgOpacityCtrl.duration = const Duration(milliseconds: 400); // Make fade-out always smooth
+        setState(() {
+          _ignoreAllPointers = true; // <--- Add this line
+        });
+        _bgOpacityCtrl.duration = const Duration(milliseconds: 400);
         _bgOpacityCtrl.reverse(from: _bgOpacityCtrl.value);
         _bgOpacityCtrl.addStatusListener((status) {
           if (status == AnimationStatus.dismissed && !_isDismissing) {
@@ -256,10 +268,22 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
   }
 
   void _animateScaleDown({Duration duration = const Duration(milliseconds: 500)}) {
+    setState(() {
+      _ignoreAllPointers = true; // <--- Add this line
+    });
     _bgOpacityCtrl.duration = duration;
     _scaleCtrl.duration = duration;
     _bgOpacityCtrl.reverse(from: _bgOpacityCtrl.value);
     _scaleCtrl.forward(from: 0);
+  }
+
+  void animateDismiss() {
+    if (!_isDismissing) {
+      _isDismissing = true;
+      _scaleAtDismiss = _scale;
+      _minRadius = _clipRadius;
+      _animateScaleDown();
+    }
   }
 
   @override
@@ -285,24 +309,29 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       child = SlideTransition(position: _entranceAnim, child: child);
     }
 
-    return Material(
-      color: Colors.transparent,
-      child: Stack(
-        children: [
-          IgnorePointer(ignoring: true, child: Container(color: Colors.black54.withOpacity(_bgOpacity * 0.5))),
-          if (widget.shrinkWrap)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: SizedBox(
-                width: MediaQuery.of(context).size.width,
-                child: GestureDetector(onPanUpdate: _onPanUpdate, onPanEnd: _onPanEnd, child: child),
-              ),
-            )
-          else
-            SizedBox.expand(child: GestureDetector(onPanUpdate: _onPanUpdate, onPanEnd: _onPanEnd, child: child)),
-        ],
+    return IgnorePointer(
+      ignoring: _ignoreAllPointers,
+      child: Material(
+        color: Colors.transparent,
+        child: Stack(
+          children: [
+            // Always fill the background for dimming
+            if (_bgOpacity > 0) Positioned.fill(child: ColoredBox(color: Colors.black54.withOpacity(_bgOpacity * 0.5))),
+            // Sheet: shrinkWrap = bottom, else fullscreen
+            if (widget.shrinkWrap)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: SizedBox(
+                  width: MediaQuery.of(context).size.width,
+                  child: GestureDetector(onPanUpdate: _onPanUpdate, onPanEnd: _onPanEnd, child: child),
+                ),
+              )
+            else
+              SizedBox.expand(child: GestureDetector(onPanUpdate: _onPanUpdate, onPanEnd: _onPanEnd, child: child)),
+          ],
+        ),
       ),
     );
   }
