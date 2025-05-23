@@ -1,7 +1,10 @@
 name: dragsheet
-description: "A new Flutter package project."
+description: Physics-y, bouncy sheet & modal for Flutter — built to fill a gap I hit in my own app.
 version: 0.0.1
-homepage:
+homepage: https://matthewtrent.me
+repository: https://github.com/mattrltrent/dragsheet
+issue_tracker: https://github.com/mattrltrent/dragsheet/issues
+topics: [flutter, drag, sheet, modal, bottom_sheet, bottom_modal, physics, bouncy]
 
 environment:
   sdk: ^3.7.2

@@ -52,7 +52,10 @@ class _DemoState extends State<Demo> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color.fromARGB(255, 255, 165, 0), Color.fromARGB(255, 255, 140, 0)],
+            colors: [
+              Color.fromARGB(255, 255, 165, 0),
+              Color.fromARGB(255, 255, 140, 0),
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -63,7 +66,10 @@ class _DemoState extends State<Demo> {
             children: [
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text("Sheet is open: ${controller.isOpen}", style: TextStyle(fontSize: 18)),
+                child: Text(
+                  "Sheet is open: ${controller.isOpen}",
+                  style: TextStyle(fontSize: 18),
+                ),
               ),
               const SizedBox(height: 20),
               Row(
@@ -72,15 +78,26 @@ class _DemoState extends State<Demo> {
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text("Normal", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      const Text(
+                        "normal",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed:
                             () => controller.show(
                               context,
-                              (ctx) => DemoSheet(onDismiss: controller.dismiss, isFullScreen: true),
-                              maxRadius: 20,
-                              bgOpacity: BgOpacity(color: Colors.black.withOpacity(0.5)),
+                              (ctx) => DemoSheet(
+                                onDismiss: controller.dismiss,
+                                isFullScreen: true,
+                              ),
+                              maxRadius: 40,
+                              bgOpacity: BgOpacity(
+                                color: Colors.black.withOpacity(0.5),
+                              ),
                               onShow: () => HapticFeedback.lightImpact(),
                               onDismiss: () => HapticFeedback.lightImpact(),
                             ),
@@ -91,16 +108,27 @@ class _DemoState extends State<Demo> {
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text("ShrinkWrapped", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      const Text(
+                        "shrinkWrap",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed:
                             () => controller.show(
                               context,
-                              (ctx) => DemoSheet(onDismiss: controller.dismiss, isFullScreen: false),
+                              (ctx) => DemoSheet(
+                                onDismiss: controller.dismiss,
+                                isFullScreen: false,
+                              ),
                               shrinkWrap: true,
                               maxRadius: 0,
-                              bgOpacity: BgOpacity(color: Colors.black.withOpacity(0.5)),
+                              bgOpacity: BgOpacity(
+                                color: Colors.black.withOpacity(0.5),
+                              ),
                               onShow: () => HapticFeedback.lightImpact(),
                               onDismiss: () => HapticFeedback.lightImpact(),
                             ),

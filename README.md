@@ -1,39 +1,101 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# Dragsheet: Bouncy, Fun, & Draggable ✨
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages).
+Simple Flutter package for creating bouncy, fun, and most importantly *draggable* sheets.
 
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages).
--->
+Developed because I wanted this for my own app, was familiar with the React Native versions of this, but couldn't find a matching one in the Flutter ecosystem.
 
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+## Examples
 
-## Features
+<table>
+  <tr>
+    <td>
+      <img
+        src="https://github.com/mattrltrent/random_assets/blob/main/ex-ezgif.com-video-to-gif-converter.gif"
+        alt="abc"
+        height="400px"
+      />
+    </td>
+    <td>
+      <img
+        src="https://github.com/mattrltrent/random_assets/blob/main/ex2-ezgif.com-video-to-gif-converter-2.gif"
+        alt="abc"
+        height="400px"
+      />
+    </td>
+    <td>
+      <img
+        src="https://github.com/mattrltrent/random_assets/blob/main/ex3-ezgif.com-video-to-gif-converter.gif"
+        alt="abc"
+        height="400px"
+      />
+    </td>
+  </tr>
+</table>
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
-
-## Getting started
-
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
+This demo "sign up" [blurry sheet](https://github.com/mattrltrent/dragsheet/blob/main/example/lib/demo_sheet.dart) is not included with the package. I created it to demonstrate what you _are capable of doing_ with the `dragsheet` package.
 
 ## Usage
 
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder.
+1. Initialize the controller.
+    ```dart
+    final controller = DragSheetController();
+    ```
 
-```dart
-const like = 'sample';
-```
+2. Open `YourWidget` via the controller.
+    ```dart
+    controller.show(
+        context,
+        (ctx) => YourWidget(),
+    ),
+    ```
 
-## Additional information
+3. If you want to close the sheet, use the controller.
+    ```dart
+    controller.close();
+    ```
 
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+4. If you want to listen to the state of the sheet, use the controller.
+    ```dart
+    controller.addListener(() {
+        print(controller.isOpen);
+    });
+    ```
+
+5. Remember to `dispose` of the controller when you're done with it.
+    ```dart
+    @override
+    void dispose() {
+        super.dispose();
+        controller.dispose();
+    }
+    ```
+
+6. If you care about customization, you won't be disapointed. However, the defaults should be solid enough. The main property to know about is `shrinkWrap`. If you want your sheet to shrink to the size of the child you provide it, make this `true`.
+  ```dart
+  void show(
+    BuildContext context,
+    WidgetBuilder builder, {
+    bool shrinkWrap = false,
+    double minScale = 0.85,
+    double maxScale = 1.0,
+    double minRadius = 0.0,
+    double maxRadius = 30.0,
+    double minOpacity = 0.0,
+    double maxOpacity = 0.5,
+    Duration entranceDuration = const Duration(milliseconds: 200),
+    Duration exitDuration = const Duration(milliseconds: 200),
+    Duration gestureFadeDuration = const Duration(milliseconds: 200),
+    Duration programmaticFadeDuration = const Duration(milliseconds: 200),
+    double effectDistance = 220.0,
+    BgOpacity? bgOpacity,
+    double swipeVelocityMultiplier = 2.5,
+    double swipeAccelerationThreshold = 50.0,
+    double swipeAccelerationMultiplier = 12.0,
+    double swipeMinVelocity = 1000.0,
+    double swipeMaxVelocity = 10000.0,
+    double swipeFriction = 0.09,
+    VoidCallback? onShow,
+    VoidCallback? onDismiss,
+    Duration opacityDuration = const Duration(milliseconds: 200),
+  })
+  ```

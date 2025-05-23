@@ -10,7 +10,11 @@ class DemoSheet extends StatefulWidget {
   ///
   /// [onDismiss] is a callback that should be invoked when the sheet requests dismissal.
   /// [isFullScreen] determines if the sheet should adapt its layout for a full-screen presentation.
-  const DemoSheet({super.key, required this.onDismiss, this.isFullScreen = false});
+  const DemoSheet({
+    super.key,
+    required this.onDismiss,
+    this.isFullScreen = false,
+  });
 
   /// Callback invoked when the sheet requests to be dismissed,
   /// for example, by tapping a close button.
@@ -28,11 +32,17 @@ class DemoSheet extends StatefulWidget {
 class _DemoSheetState extends State<DemoSheet> {
   @override
   Widget build(BuildContext context) {
-    final effectiveBorderRadius = widget.isFullScreen ? BorderRadius.zero : const BorderRadius.all(Radius.circular(30));
+    final effectiveBorderRadius =
+        widget.isFullScreen
+            ? BorderRadius.zero
+            : const BorderRadius.all(Radius.circular(30));
 
     return Container(
       width: double.infinity,
-      height: widget.isFullScreen ? double.infinity : MediaQuery.of(context).size.height * 0.6,
+      height:
+          widget.isFullScreen
+              ? double.infinity
+              : MediaQuery.of(context).size.height * 0.6,
       decoration: BoxDecoration(
         borderRadius: effectiveBorderRadius,
         boxShadow:
@@ -57,7 +67,11 @@ class _DemoSheetState extends State<DemoSheet> {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Colors.white.withOpacity(0.45), Colors.white.withOpacity(0.15), Colors.transparent],
+                      colors: [
+                        Colors.white.withOpacity(0.45),
+                        Colors.white.withOpacity(0.15),
+                        Colors.transparent,
+                      ],
                       stops: const [0.0, 0.3, 1.0],
                     ),
                     borderRadius: effectiveBorderRadius,
@@ -66,12 +80,25 @@ class _DemoSheetState extends State<DemoSheet> {
               ),
             ),
             Positioned.fill(
-              child: Blur(blur: 20, child: Container(color: const Color.fromARGB(171, 245, 245, 245).withOpacity(0.3))),
+              child: Blur(
+                blur: 20,
+                child: Container(
+                  color: const Color.fromARGB(
+                    171,
+                    245,
+                    245,
+                    245,
+                  ).withOpacity(0.3),
+                ),
+              ),
             ),
             Positioned.fill(
               child: Container(
                 padding: EdgeInsets.only(
-                  top: widget.isFullScreen ? MediaQuery.of(context).padding.top : 0,
+                  top:
+                      widget.isFullScreen
+                          ? MediaQuery.of(context).padding.top
+                          : 0,
                   bottom: MediaQuery.of(context).padding.bottom,
                 ),
                 color: const Color.fromARGB(35, 133, 133, 133),
@@ -92,9 +119,17 @@ class _DemoSheetState extends State<DemoSheet> {
                       Align(
                         alignment: Alignment.topRight,
                         child: Padding(
-                          padding: const EdgeInsets.only(right: 12.0, top: 8.0, bottom: 4.0),
+                          padding: const EdgeInsets.only(
+                            right: 12.0,
+                            top: 8.0,
+                            bottom: 4.0,
+                          ),
                           child: IconButton(
-                            icon: Icon(Icons.close, color: Colors.black.withOpacity(0.7), size: 28),
+                            icon: Icon(
+                              Icons.close,
+                              color: Colors.black.withOpacity(0.7),
+                              size: 28,
+                            ),
                             onPressed: widget.onDismiss,
                           ),
                         ),
@@ -127,7 +162,10 @@ class _DemoSheetState extends State<DemoSheet> {
                     const SizedBox(height: 8),
                     Expanded(
                       child: ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 8,
+                        ),
                         itemCount: 10,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder:
@@ -146,11 +184,17 @@ class _DemoSheetState extends State<DemoSheet> {
                               ),
                               child: Row(
                                 children: [
-                                  Icon(Icons.person, color: Colors.blueGrey[300]),
+                                  Icon(
+                                    Icons.person,
+                                    color: Colors.blueGrey[300],
+                                  ),
                                   const SizedBox(width: 12),
                                   Text(
                                     "List item ${index + 1}",
-                                    style: const TextStyle(fontSize: 16, color: Colors.black87),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.black87,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -166,9 +210,14 @@ class _DemoSheetState extends State<DemoSheet> {
                           backgroundColor: Colors.black.withOpacity(0.8),
                           foregroundColor: Colors.white,
                           minimumSize: const Size.fromHeight(48),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
-                        child: const Text("Close", style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: const Text(
+                          "Close",
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),

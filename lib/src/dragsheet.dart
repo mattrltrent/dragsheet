@@ -272,8 +272,14 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
-    _scaleCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _scaleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
     _scaleCtrl.addListener(() {
       if (_isDismissing) {
         setState(() {
@@ -288,15 +294,24 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       }
     });
 
-    _bgOpacityCtrl = AnimationController(vsync: this, duration: widget.opacityDuration);
-    _bgOpacityAnim = CurvedAnimation(parent: _bgOpacityCtrl, curve: Curves.easeOut);
+    _bgOpacityCtrl = AnimationController(
+      vsync: this,
+      duration: widget.opacityDuration,
+    );
+    _bgOpacityAnim = CurvedAnimation(
+      parent: _bgOpacityCtrl,
+      curve: Curves.easeOut,
+    );
     _bgOpacityAnim.addListener(() {
       setState(() {
         _bgOpacity = _bgOpacityAnim.value;
       });
     });
 
-    _entranceCtrl = AnimationController(vsync: this, duration: widget.entranceDuration);
+    _entranceCtrl = AnimationController(
+      vsync: this,
+      duration: widget.entranceDuration,
+    );
     _entranceAnim = Tween<Offset>(
       begin: Offset(0, 1),
       end: Offset.zero,
@@ -334,7 +349,8 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
 
   void _removeGravityDismissOpacityListener() {
     if (_gravityDismissOpacityListener != null) {
-      if (_bgOpacityCtrl.isAnimating || _bgOpacityCtrl.status != AnimationStatus.dismissed) {}
+      if (_bgOpacityCtrl.isAnimating ||
+          _bgOpacityCtrl.status != AnimationStatus.dismissed) {}
       _bgOpacityCtrl.removeStatusListener(_gravityDismissOpacityListener!);
       _gravityDismissOpacityListener = null;
     }
@@ -358,11 +374,17 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       _offset += d.delta;
       final dist = _offset.distance.clamp(0, widget.effectDistance);
 
-      _scale = widget.maxScale - (widget.maxScale - widget.minScale) * (dist / widget.effectDistance);
-      _clipRadius = widget.minRadius + (widget.maxRadius - widget.minRadius) * (dist / widget.effectDistance);
+      _scale =
+          widget.maxScale -
+          (widget.maxScale - widget.minScale) * (dist / widget.effectDistance);
+      _clipRadius =
+          widget.minRadius +
+          (widget.maxRadius - widget.minRadius) *
+              (dist / widget.effectDistance);
     });
 
-    _lastVelocity = d.delta / (d.sourceTimeStamp?.inMilliseconds.toDouble() ?? 16) * 1000;
+    _lastVelocity =
+        d.delta / (d.sourceTimeStamp?.inMilliseconds.toDouble() ?? 16) * 1000;
     _lastVelocityTime = DateTime.now();
   }
 
@@ -400,7 +422,8 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     double speed = velocity.distance * velocityMultiplier;
     speed = speed < minVelocity ? minVelocity : speed;
     speed = speed.clamp(minVelocity, maxVelocity);
-    final direction = velocity.distance == 0 ? Offset(0, 1) : velocity / velocity.distance;
+    final direction =
+        velocity.distance == 0 ? Offset(0, 1) : velocity / velocity.distance;
     final boostedVelocity = direction * speed;
 
     final simX = FrictionSimulation(friction, begin.dx, boostedVelocity.dx);
@@ -420,7 +443,8 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       });
 
       final size = MediaQuery.of(context).size;
-      if (!fadeStarted && (x.abs() > size.width * 0.7 || y.abs() > size.height * 0.7)) {
+      if (!fadeStarted &&
+          (x.abs() > size.width * 0.7 || y.abs() > size.height * 0.7)) {
         fadeStarted = true;
         setState(() {
           _ignoreAllPointers = true;
@@ -446,7 +470,8 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     final end = target;
 
     final beginRadius = _clipRadius;
-    final endRadius = dismiss ? _clipRadius : (target == Offset.zero ? 0.0 : 50.0);
+    final endRadius =
+        dismiss ? _clipRadius : (target == Offset.zero ? 0.0 : 50.0);
     final beginScale = _scale;
     final endScale = dismiss ? _scale : (target == Offset.zero ? 1.0 : 0.75);
 
@@ -580,13 +605,23 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     final double simVelX = velocity.dx * xSign;
     final double simAccelX = velocity.dx.abs() < 1e-3 ? 0.0 : accelMagnitude;
 
-    final GravitySimulation simX = GravitySimulation(simAccelX, simStartX, flingBoundaryDistance, simVelX);
+    final GravitySimulation simX = GravitySimulation(
+      simAccelX,
+      simStartX,
+      flingBoundaryDistance,
+      simVelX,
+    );
 
     final double simStartY = beginOffset.dy * ySign;
     final double simVelY = velocity.dy * ySign;
     final double simAccelY = velocity.dy.abs() < 1e-3 ? 0.0 : accelMagnitude;
 
-    final GravitySimulation simY = GravitySimulation(simAccelY, simStartY, flingBoundaryDistance, simVelY);
+    final GravitySimulation simY = GravitySimulation(
+      simAccelY,
+      simStartY,
+      flingBoundaryDistance,
+      simVelY,
+    );
 
     _springTicker = createTicker((elapsed) {
       final t = elapsed.inMilliseconds / 1000.0;
@@ -600,7 +635,8 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       final screenSize = MediaQuery.of(context).size;
       if ((newOffsetX.abs() > screenSize.width * 1.5 && simAccelX != 0) ||
           (newOffsetY.abs() > screenSize.height * 1.5 && simAccelY != 0)) {
-        if (!_bgOpacityCtrl.isAnimating && _bgOpacityCtrl.status == AnimationStatus.dismissed) {
+        if (!_bgOpacityCtrl.isAnimating &&
+            _bgOpacityCtrl.status == AnimationStatus.dismissed) {
           _cancelSpringTicker();
           return;
         }
@@ -625,7 +661,10 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
         color: Colors.transparent,
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        borderRadius: widget.shrinkWrap ? BorderRadius.vertical(top: Radius.circular(24)) : null,
+        borderRadius:
+            widget.shrinkWrap
+                ? BorderRadius.vertical(top: Radius.circular(24))
+                : null,
         child: widget.builder(context),
       ),
     );
@@ -633,9 +672,15 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     Widget child = Transform.scale(scale: _scale, child: sheet);
 
     if (widget.shrinkWrap) {
-      child = Align(alignment: Alignment.bottomCenter, child: Transform.translate(offset: _offset, child: child));
+      child = Align(
+        alignment: Alignment.bottomCenter,
+        child: Transform.translate(offset: _offset, child: child),
+      );
     } else {
-      child = Transform.translate(offset: _offset, child: SizedBox.expand(child: child));
+      child = Transform.translate(
+        offset: _offset,
+        child: SizedBox.expand(child: child),
+      );
     }
 
     if (!_didEntrance) {
@@ -652,8 +697,16 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
         surfaceTintColor: Colors.transparent,
         child: Stack(
           children: [
-            if (_bgOpacity > 0 && bgOpacity.opacity > 0 && bgOpacity.color.opacity > 0)
-              Positioned.fill(child: ColoredBox(color: bgOpacity.color.withOpacity(_bgOpacity * bgOpacity.opacity))),
+            if (_bgOpacity > 0 &&
+                bgOpacity.opacity > 0 &&
+                bgOpacity.color.opacity > 0)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: bgOpacity.color.withOpacity(
+                    _bgOpacity * bgOpacity.opacity,
+                  ),
+                ),
+              ),
             widget.shrinkWrap
                 ? Positioned(
                   bottom: 0,
@@ -703,5 +756,8 @@ class BgOpacity {
   const BgOpacity({required this.color, this.opacity = 0.5});
 
   /// A default [BgOpacity] configuration with black color and 0.5 opacity.
-  static const BgOpacity kDefault = BgOpacity(color: Colors.black, opacity: 0.5);
+  static const BgOpacity kDefault = BgOpacity(
+    color: Colors.black,
+    opacity: 0.5,
+  );
 }
