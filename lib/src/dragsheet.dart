@@ -3,13 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/scheduler.dart';
 
-class DragSheetController {
+class DragSheetController extends ChangeNotifier {
   OverlayEntry? _entry;
   GlobalKey<_DragSheetState>? _sheetKey;
 
   /// Optional callbacks for show/dismiss events
   VoidCallback? onShow;
   VoidCallback? onDismiss;
+
+  bool _isOpen = false;
+  bool get isOpen => _isOpen;
 
   void show(
     BuildContext context,
@@ -36,10 +39,19 @@ class DragSheetController {
     VoidCallback? onShow,
     VoidCallback? onDismiss,
   }) {
-    dismiss();
+    // Ensure previous entry is removed before creating a new one
+    if (_entry != null) {
+      _entry!.remove();
+      _entry = null;
+      _sheetKey = null;
+      _isOpen = false;
+    }
+
     _sheetKey = GlobalKey<_DragSheetState>();
     this.onShow = onShow;
     this.onDismiss = onDismiss;
+    _isOpen = true;
+    notifyListeners();
     _entry = OverlayEntry(
       builder:
           (ctx) => DragSheet(
@@ -76,13 +88,19 @@ class DragSheetController {
   }
 
   void dismiss() {
-    _sheetKey?.currentState?.animateDismiss();
+    if (_isOpen) {
+      _sheetKey?.currentState?.animateDismiss();
+    }
   }
 
   void _removeEntry() {
     final entry = _entry;
     _entry = null;
     entry?.remove();
+    if (_isOpen) {
+      _isOpen = false;
+      notifyListeners();
+    }
   }
 }
 
@@ -429,6 +447,9 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     if (!_isDismissing && !_isExiting) {
       _isDismissing = true;
       _isExiting = true;
+      setState(() {
+        _ignoreAllPointers = true; // Block interaction during animation
+      });
       _bgOpacityCtrl.duration = widget.programmaticFadeDuration;
       if (_bgOpacityCtrl.value == 0) {
         _bgOpacityCtrl.value = 1.0;
@@ -436,6 +457,9 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       final fade = _bgOpacityCtrl.reverse(from: _bgOpacityCtrl.value);
       final slide = _exitCtrl.forward();
       await Future.wait([fade, slide]);
+      setState(() {
+        _ignoreAllPointers = false; // Allow interaction again
+      });
       widget.onDismissed?.call();
     }
   }
@@ -470,32 +494,27 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       child = SlideTransition(position: _exitAnim, child: child);
     }
 
-    return Material(
-      color: Colors.transparent,
-      child: Stack(
-        children: [
-          if (_bgOpacity > 0)
-            Positioned.fill(child: ColoredBox(color: bgOpacity.color.withOpacity(_bgOpacity * bgOpacity.opacity))),
-          widget.shrinkWrap
-              ? Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: IgnorePointer(
-                  ignoring: _ignoreAllPointers,
+    return IgnorePointer(
+      ignoring: _ignoreAllPointers,
+      child: Material(
+        color: Colors.transparent,
+        child: Stack(
+          children: [
+            if (_bgOpacity > 0)
+              Positioned.fill(child: ColoredBox(color: bgOpacity.color.withOpacity(_bgOpacity * bgOpacity.opacity))),
+            widget.shrinkWrap
+                ? Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
                   child: SizedBox(
                     width: MediaQuery.of(context).size.width,
                     child: GestureDetector(onPanUpdate: _onPanUpdate, onPanEnd: _onPanEnd, child: child),
                   ),
-                ),
-              )
-              : IgnorePointer(
-                ignoring: _ignoreAllPointers,
-                child: SizedBox.expand(
-                  child: GestureDetector(onPanUpdate: _onPanUpdate, onPanEnd: _onPanEnd, child: child),
-                ),
-              ),
-        ],
+                )
+                : SizedBox.expand(child: GestureDetector(onPanUpdate: _onPanUpdate, onPanEnd: _onPanEnd, child: child)),
+          ],
+        ),
       ),
     );
   }

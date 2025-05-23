@@ -1,4 +1,5 @@
 import 'package:dragsheet/dragsheet.dart';
+import 'package:example/bottom_sheet.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -10,7 +11,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(title: "Example", theme: ThemeData(), debugShowCheckedModeBanner: false, home: Demo());
+    return MaterialApp(home: Demo());
   }
 }
 
@@ -24,34 +25,16 @@ class Demo extends StatefulWidget {
 class _DemoState extends State<Demo> {
   final controller = DragSheetController();
 
-  void _showSheet() {
-    controller.show(
-      context,
-      (ctx) => MySheetContent(action: () => controller.dismiss()),
-      shrinkWrap: false,
-      onShow: () => print('Sheet shown!'),
-      onDismiss: () => print('Sheet dismissed!'),
-      // minScale: 0.8,
-      // bgOpacity: BgOpacity(color: Colors.green, opacity: 0.5),
-      // maxScale: 1.0,
-      // minRadius: 0.0,
-      // maxRadius: 20.0,
-      // entranceDuration: Duration(milliseconds: 400),
-      // exitDuration: Duration(milliseconds: 400),
-      // gestureFadeDuration: Duration(milliseconds: 200),
-      // programmaticFadeDuration: Duration(milliseconds: 1200),
-      // effectDistance: 150.0,
-      // swipeVelocityMultiplier: 3.5,
-      // swipeAccelerationThreshold: 2500, // try lowering for easier boost
-      // swipeAccelerationMultiplier: 7.0,
-      // swipeMinVelocity: 2000.0,
-      // swipeMaxVelocity: 6000.0,
-      // swipeFriction: 0.07,
-    );
+  @override
+  void initState() {
+    super.initState();
+    controller.addListener(() => setState(() {}));
   }
 
-  void _hideSheet() {
-    controller.dismiss();
+  @override
+  void dispose() {
+    controller.removeListener(() => setState(() {}));
+    super.dispose();
   }
 
   @override
@@ -62,9 +45,14 @@ class _DemoState extends State<Demo> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ElevatedButton(onPressed: _showSheet, child: Text("Show Sheet")),
+            ElevatedButton(
+              onPressed: () => controller.show(context, (ctx) => DemoBottomSheet(onDismiss: controller.dismiss)),
+              child: Text("Show Sheet"),
+            ),
             const SizedBox(height: 16),
-            ElevatedButton(onPressed: _hideSheet, child: Text("Hide Sheet")),
+            ElevatedButton(onPressed: () => controller.dismiss(), child: Text("Hide Sheet")),
+            const SizedBox(height: 16),
+            Text("Sheet is open: ${controller.isOpen}", style: TextStyle(fontSize: 18)),
           ],
         ),
       ),
