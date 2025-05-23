@@ -4,7 +4,7 @@ version: 0.0.1
 homepage: https://matthewtrent.me
 repository: https://github.com/mattrltrent/dragsheet
 issue_tracker: https://github.com/mattrltrent/dragsheet/issues
-topics: [flutter, drag, sheet, modal, bottom_sheet, bottom_modal, physics, bouncy]
+topics: [draggable, sheet, modal, physics, bouncy]
 
 environment:
   sdk: ^3.7.2
