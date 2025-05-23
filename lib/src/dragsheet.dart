@@ -210,7 +210,7 @@ class DragSheet extends StatefulWidget {
 
   /// Creates a [DragSheet].
   const DragSheet({
-    Key? key,
+    super.key,
     required this.builder,
     required this.shrinkWrap,
     this.onDismissed,
@@ -234,7 +234,7 @@ class DragSheet extends StatefulWidget {
     this.swipeMaxVelocity = 5000.0,
     this.swipeFriction = 0.09,
     this.opacityDuration = const Duration(milliseconds: 200),
-  }) : super(key: key);
+  });
 
   @override
   State<DragSheet> createState() => _DragSheetState();
@@ -260,14 +260,10 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
 
   AnimationStatusListener? _gravityDismissOpacityListener;
 
-  double _minScale = 1.0;
   double _minRadius = 0.0;
   late double _scaleAtDismiss;
 
   bool _ignoreAllPointers = false;
-
-  Offset? _lastVelocity;
-  DateTime? _lastVelocityTime;
 
   @override
   void initState() {
@@ -382,10 +378,6 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
           (widget.maxRadius - widget.minRadius) *
               (dist / widget.effectDistance);
     });
-
-    _lastVelocity =
-        d.delta / (d.sourceTimeStamp?.inMilliseconds.toDouble() ?? 16) * 1000;
-    _lastVelocityTime = DateTime.now();
   }
 
   void _onPanEnd(DragEndDetails d) {
@@ -403,63 +395,6 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     }
 
     _animateTo(Offset.zero);
-  }
-
-  void _animateWithFriction(
-    Offset velocity, {
-    double velocityMultiplier = 3.5,
-    double minVelocity = 2500.0,
-    double maxVelocity = 10000.0,
-    double friction = 0.09,
-  }) {
-    _springTicker?.dispose();
-    _springTicker = null;
-
-    final begin = _offset;
-    final beginRadius = _clipRadius;
-    final beginScale = _scale;
-
-    double speed = velocity.distance * velocityMultiplier;
-    speed = speed < minVelocity ? minVelocity : speed;
-    speed = speed.clamp(minVelocity, maxVelocity);
-    final direction =
-        velocity.distance == 0 ? Offset(0, 1) : velocity / velocity.distance;
-    final boostedVelocity = direction * speed;
-
-    final simX = FrictionSimulation(friction, begin.dx, boostedVelocity.dx);
-    final simY = FrictionSimulation(friction, begin.dy, boostedVelocity.dy);
-
-    bool fadeStarted = false;
-
-    _springTicker = createTicker((elapsed) {
-      final t = elapsed.inMilliseconds / 1000.0;
-      final x = simX.x(t);
-      final y = simY.x(t);
-
-      setState(() {
-        _offset = Offset(x, y);
-        _clipRadius = beginRadius;
-        _scale = beginScale;
-      });
-
-      final size = MediaQuery.of(context).size;
-      if (!fadeStarted &&
-          (x.abs() > size.width * 0.7 || y.abs() > size.height * 0.7)) {
-        fadeStarted = true;
-        setState(() {
-          _ignoreAllPointers = true;
-        });
-        _bgOpacityCtrl.duration = widget.gestureFadeDuration;
-        _bgOpacityCtrl.reverse(from: _bgOpacityCtrl.value);
-        _bgOpacityCtrl.addStatusListener((status) {
-          if (status == AnimationStatus.dismissed && !_isDismissing) {
-            _isDismissing = true;
-            widget.onDismissed?.call();
-          }
-        });
-      }
-    });
-    _springTicker?.start();
   }
 
   void _animateTo(Offset target, {bool dismiss = false}) {
@@ -503,7 +438,6 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
           _scale = endScale;
 
           if (end == Offset.zero) {
-            _minScale = 1.0;
             _minRadius = 0.0;
           }
         });
@@ -702,8 +636,11 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
                 bgOpacity.color.opacity > 0)
               Positioned.fill(
                 child: ColoredBox(
-                  color: bgOpacity.color.withOpacity(
-                    _bgOpacity * bgOpacity.opacity,
+                  color: bgOpacity.color.withAlpha(
+                    (255 * _bgOpacity * bgOpacity.opacity).round().clamp(
+                      0,
+                      255,
+                    ),
                   ),
                 ),
               ),
@@ -757,7 +694,7 @@ class BgOpacity {
 
   /// A default [BgOpacity] configuration with black color and 0.5 opacity.
   static const BgOpacity kDefault = BgOpacity(
-    color: Colors.black,
-    opacity: 0.5,
+    color: Color.fromRGBO(0, 0, 0, 0.5), // Black with 0.5 opacity
+    opacity: 1.0, // Opacity is now part of the color
   );
 }
