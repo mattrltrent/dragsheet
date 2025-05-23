@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/scheduler.dart';
 
+const Duration kOpacityDuration = Duration(milliseconds: 200); // Opacity animation duration
+
 class DragSheetController extends ChangeNotifier {
   OverlayEntry? _entry;
   GlobalKey<_DragSheetState>? _sheetKey;
@@ -18,26 +20,27 @@ class DragSheetController extends ChangeNotifier {
     BuildContext context,
     WidgetBuilder builder, {
     bool shrinkWrap = false,
-    double minScale = 0.75,
+    double minScale = 0.85,
     double maxScale = 1.0,
     double minRadius = 0.0,
-    double maxRadius = 50.0,
+    double maxRadius = 30.0,
     double minOpacity = 0.0,
     double maxOpacity = 0.5,
     Duration entranceDuration = const Duration(milliseconds: 200),
     Duration exitDuration = const Duration(milliseconds: 200),
-    Duration gestureFadeDuration = const Duration(milliseconds: 300),
-    Duration programmaticFadeDuration = const Duration(milliseconds: 1000),
-    double effectDistance = 120.0,
+    Duration gestureFadeDuration = const Duration(milliseconds: 200),
+    Duration programmaticFadeDuration = const Duration(milliseconds: 200),
+    double effectDistance = 220.0,
     BgOpacity? bgOpacity,
-    double swipeVelocityMultiplier = 3.5,
-    double swipeAccelerationThreshold = 3000,
-    double swipeAccelerationMultiplier = 6.0,
-    double swipeMinVelocity = 1800.0,
-    double swipeMaxVelocity = 5000.0,
+    double swipeVelocityMultiplier = 2.5,
+    double swipeAccelerationThreshold = 50.0, // super low, triggers acceleration easily
+    double swipeAccelerationMultiplier = 12.0, // much higher, speeds up dismiss
+    double swipeMinVelocity = 1000.0,
+    double swipeMaxVelocity = 10000.0,
     double swipeFriction = 0.09,
     VoidCallback? onShow,
     VoidCallback? onDismiss,
+    Duration opacityDuration = const Duration(milliseconds: 200), // <-- Add this
   }) {
     // Ensure previous entry is removed before creating a new one
     if (_entry != null) {
@@ -81,6 +84,7 @@ class DragSheetController extends ChangeNotifier {
             swipeMinVelocity: swipeMinVelocity,
             swipeMaxVelocity: swipeMaxVelocity,
             swipeFriction: swipeFriction,
+            opacityDuration: opacityDuration, // <-- Pass it down
           ),
     );
     Overlay.of(context).insert(_entry!);
@@ -132,6 +136,8 @@ class DragSheet extends StatefulWidget {
   final double swipeMaxVelocity;
   final double swipeFriction;
 
+  final Duration opacityDuration; // <-- Add this
+
   const DragSheet({
     Key? key,
     required this.builder,
@@ -156,6 +162,7 @@ class DragSheet extends StatefulWidget {
     this.swipeMinVelocity = 1800.0,
     this.swipeMaxVelocity = 5000.0,
     this.swipeFriction = 0.09,
+    this.opacityDuration = const Duration(milliseconds: 200), // <-- Add this
   }) : super(key: key);
 
   @override
@@ -212,7 +219,10 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       }
     });
 
-    _bgOpacityCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _bgOpacityCtrl = AnimationController(
+      vsync: this,
+      duration: widget.opacityDuration,
+    ); // <-- Use widget.opacityDuration
     _bgOpacityAnim = CurvedAnimation(parent: _bgOpacityCtrl, curve: Curves.easeOut);
     _bgOpacityAnim.addListener(() {
       setState(() {
@@ -255,18 +265,20 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  void _onPanStart(DragStartDetails d) {
+    _cancelSpringTicker();
+    // No need to set _clipRadius or _scale here!
+  }
+
   void _onPanUpdate(DragUpdateDetails d) {
+    _cancelSpringTicker();
     setState(() {
       _offset += d.delta;
       final dist = _offset.distance.clamp(0, widget.effectDistance);
-      final scale = widget.maxScale - (widget.maxScale - widget.minScale) * (dist / widget.effectDistance);
-      final radius = widget.minRadius + (widget.maxRadius - widget.minRadius) * (dist / widget.effectDistance);
 
-      if (scale < _minScale) _minScale = scale;
-      if (radius > _minRadius) _minRadius = radius;
-
-      _scale = _minScale;
-      _clipRadius = _minRadius;
+      // Interpolate scale and radius based on drag distance
+      _scale = widget.maxScale - (widget.maxScale - widget.minScale) * (dist / widget.effectDistance);
+      _clipRadius = widget.minRadius + (widget.maxRadius - widget.minRadius) * (dist / widget.effectDistance);
     });
 
     // Track velocity and time for acceleration calculation
@@ -276,57 +288,26 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
 
   void _onPanEnd(DragEndDetails d) {
     final velocity = d.velocity.pixelsPerSecond;
-    final threshold = 700.0;
-    final edgeThreshold = 80.0;
-    final size = MediaQuery.of(context).size;
+    final velocityMagnitude = velocity.distance;
+    final minDismissVelocity = 200.0;
 
-    // Calculate acceleration if possible
-    double acceleration = 0.0;
-    if (_lastVelocity != null && _lastVelocityTime != null) {
-      final timeDiff = DateTime.now().difference(_lastVelocityTime!).inMilliseconds / 1000.0;
-      if (timeDiff > 0) {
-        final velocityDiff = (velocity - _lastVelocity!).distance;
-        acceleration = velocityDiff / timeDiff;
-      }
-    }
+    final angle = velocity.direction * 180 / 3.1415926535897932;
+    final normalizedAngle = (angle + 360) % 360;
+    final isDownward = normalizedAngle >= 45 && normalizedAngle <= 135;
 
-    // Use widget's swipe physics parameters
-    double velocityMultiplier = widget.swipeVelocityMultiplier;
-    if (acceleration > widget.swipeAccelerationThreshold) {
-      velocityMultiplier = widget.swipeAccelerationMultiplier;
-    }
-
-    if (velocity.distance > threshold) {
-      _animateWithFriction(
-        velocity,
-        velocityMultiplier: velocityMultiplier,
-        minVelocity: widget.swipeMinVelocity,
-        maxVelocity: widget.swipeMaxVelocity,
-        friction: widget.swipeFriction,
-      );
+    if (velocityMagnitude > minDismissVelocity && isDownward) {
+      _animateWithGravity(velocity, acceleration: 8000.0); // try 8000-12000 for a fast whoosh
       return;
     }
 
-    Offset? dismissDir;
-    if (_offset.dx.abs() > size.width / 2 - edgeThreshold) {
-      dismissDir = Offset(_offset.dx.isNegative ? -1 : 1, 0);
-    } else if (_offset.dy.abs() > size.height / 2 - edgeThreshold) {
-      dismissDir = Offset(0, _offset.dy.isNegative ? -1 : 1);
-    }
-
-    if (dismissDir != null) {
-      final target = Offset(dismissDir.dx * size.width * 1.2, dismissDir.dy * size.height * 1.2);
-      _animateTo(target, dismiss: true);
-    } else {
-      _animateTo(Offset.zero);
-    }
+    _animateTo(Offset.zero);
   }
 
   void _animateWithFriction(
     Offset velocity, {
     double velocityMultiplier = 3.5,
-    double minVelocity = 1800.0,
-    double maxVelocity = 5000.0,
+    double minVelocity = 2500.0, // <-- bump this up!
+    double maxVelocity = 10000.0,
     double friction = 0.09,
   }) {
     _springTicker?.dispose();
@@ -337,6 +318,8 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     final beginScale = _scale;
 
     double speed = velocity.distance * velocityMultiplier;
+    // Always use at least minVelocity, even for slow swipes!
+    speed = speed < minVelocity ? minVelocity : speed;
     speed = speed.clamp(minVelocity, maxVelocity);
     final direction = velocity.distance == 0 ? Offset(0, 1) : velocity / velocity.distance;
     final boostedVelocity = direction * speed;
@@ -389,11 +372,17 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     final beginScale = _scale;
     final endScale = dismiss ? _scale : (target == Offset.zero ? 1.0 : 0.75);
 
-    final sim = SpringSimulation(SpringDescription(mass: 1, stiffness: 300, damping: 18), 0.0, 1.0, 0.0);
+    final isBouncy = target == Offset.zero;
+    final spring =
+        isBouncy
+            ? SpringDescription(mass: 1, stiffness: 340, damping: 20)
+            : SpringDescription(mass: 1, stiffness: 300, damping: 24);
+
+    final sim = SpringSimulation(spring, 0.0, 1.0, 0.0);
 
     _springTicker = createTicker((elapsed) {
       final seconds = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
-      final t = sim.x(seconds).clamp(0.0, 1.0);
+      final t = sim.x(seconds);
 
       setState(() {
         _offset = Offset.lerp(begin, end, t)!;
@@ -401,7 +390,8 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
         _scale = lerpDouble(beginScale, endScale, t)!;
       });
 
-      if (t >= 1.0) {
+      // Only stop when the simulation is "done" (close to target and velocity is low)
+      if (sim.isDone(seconds)) {
         _springTicker?.stop();
         _springTicker?.dispose();
         _springTicker = null;
@@ -409,9 +399,11 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
           _offset = end;
           _clipRadius = endRadius;
           _scale = endScale;
+
           if (end == Offset.zero) {
             _minScale = 1.0;
             _minRadius = 0.0;
+            // Haptic feedback on bounce back
           }
         });
         if (dismiss && !_isDismissing) {
@@ -432,13 +424,13 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     }
   }
 
-  void _animateScaleDown({Duration duration = const Duration(milliseconds: 300)}) {
-    // <-- fast fade for swipe
+  void _animateScaleDown({Duration? duration}) {
     setState(() {
       _ignoreAllPointers = true;
     });
-    _bgOpacityCtrl.duration = duration;
-    _scaleCtrl.duration = duration;
+    final d = duration ?? widget.opacityDuration; // <-- Use widget.opacityDuration as default
+    _bgOpacityCtrl.duration = d;
+    _scaleCtrl.duration = d;
     _bgOpacityCtrl.reverse(from: _bgOpacityCtrl.value);
     _scaleCtrl.forward(from: 0);
   }
@@ -462,6 +454,67 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       });
       widget.onDismissed?.call();
     }
+  }
+
+  void _cancelSpringTicker() {
+    if (_springTicker != null) {
+      _springTicker?.stop();
+      _springTicker?.dispose();
+      _springTicker = null;
+    }
+  }
+
+  void _animateWithGravity(
+    Offset velocity, {
+    double acceleration = 8000.0, // pixels per second squared, tweak for desired "whoosh"
+  }) {
+    _springTicker?.dispose();
+    _springTicker = null;
+
+    final begin = _offset;
+    final beginRadius = _clipRadius;
+    final beginScale = _scale;
+
+    // Always accelerate downward, regardless of swipe speed
+    final direction = velocity.dy >= 0 ? Offset(0, 1) : Offset(0, -1);
+
+    // Use the current offset as the starting position
+    final simY = GravitySimulation(
+      acceleration,
+      begin.dy,
+      2000, // target far offscreen
+      velocity.dy.abs() < 100 ? 100.0 : velocity.dy, // start with at least a little velocity
+    );
+
+    bool fadeStarted = false;
+
+    _springTicker = createTicker((elapsed) {
+      final t = elapsed.inMilliseconds / 1000.0;
+      final y = simY.x(t);
+
+      setState(() {
+        _offset = Offset(begin.dx, y);
+        _clipRadius = beginRadius;
+        _scale = beginScale;
+      });
+
+      final size = MediaQuery.of(context).size;
+      if (!fadeStarted && (y.abs() > size.height * 0.7)) {
+        fadeStarted = true;
+        setState(() {
+          _ignoreAllPointers = true;
+        });
+        _bgOpacityCtrl.duration = widget.gestureFadeDuration;
+        _bgOpacityCtrl.reverse(from: _bgOpacityCtrl.value);
+        _bgOpacityCtrl.addStatusListener((status) {
+          if (status == AnimationStatus.dismissed && !_isDismissing) {
+            _isDismissing = true;
+            widget.onDismissed?.call();
+          }
+        });
+      }
+    });
+    _springTicker?.start();
   }
 
   @override
@@ -498,9 +551,11 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       ignoring: _ignoreAllPointers,
       child: Material(
         color: Colors.transparent,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         child: Stack(
           children: [
-            if (_bgOpacity > 0)
+            if (_bgOpacity > 0 && bgOpacity.opacity > 0 && bgOpacity.color.opacity > 0)
               Positioned.fill(child: ColoredBox(color: bgOpacity.color.withOpacity(_bgOpacity * bgOpacity.opacity))),
             widget.shrinkWrap
                 ? Positioned(
@@ -509,10 +564,24 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
                   right: 0,
                   child: SizedBox(
                     width: MediaQuery.of(context).size.width,
-                    child: GestureDetector(onPanUpdate: _onPanUpdate, onPanEnd: _onPanEnd, child: child),
+                    child: GestureDetector(
+                      onPanStart: _onPanStart,
+                      onPanUpdate: _onPanUpdate,
+                      onPanEnd: _onPanEnd,
+                      onTapDown: (_) => _cancelSpringTicker(),
+                      child: child,
+                    ),
                   ),
                 )
-                : SizedBox.expand(child: GestureDetector(onPanUpdate: _onPanUpdate, onPanEnd: _onPanEnd, child: child)),
+                : SizedBox.expand(
+                  child: GestureDetector(
+                    onPanStart: _onPanStart,
+                    onPanUpdate: _onPanUpdate,
+                    onPanEnd: _onPanEnd,
+                    onTapDown: (_) => _cancelSpringTicker(),
+                    child: child,
+                  ),
+                ),
           ],
         ),
       ),
