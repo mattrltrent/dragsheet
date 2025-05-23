@@ -10,7 +10,7 @@ packages:
     source: hosted
     version: "2.12.0"
   blur:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: blur
       sha256: "1318cf79c735784eda8dffc77b1085b757373d233c1c8d94dc0cfd81530a3574"

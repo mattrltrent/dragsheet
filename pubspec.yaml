@@ -10,7 +10,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  blur: ^4.0.2
 
 dev_dependencies:
   flutter_test:

@@ -7,6 +7,10 @@ class DragSheetController {
   OverlayEntry? _entry;
   GlobalKey<_DragSheetState>? _sheetKey;
 
+  /// Optional callbacks for show/dismiss events
+  VoidCallback? onShow;
+  VoidCallback? onDismiss;
+
   void show(
     BuildContext context,
     WidgetBuilder builder, {
@@ -22,16 +26,31 @@ class DragSheetController {
     Duration gestureFadeDuration = const Duration(milliseconds: 300),
     Duration programmaticFadeDuration = const Duration(milliseconds: 1000),
     double effectDistance = 120.0,
+    BgOpacity? bgOpacity,
+    double swipeVelocityMultiplier = 3.5,
+    double swipeAccelerationThreshold = 3000,
+    double swipeAccelerationMultiplier = 6.0,
+    double swipeMinVelocity = 1800.0,
+    double swipeMaxVelocity = 5000.0,
+    double swipeFriction = 0.09,
+    VoidCallback? onShow,
+    VoidCallback? onDismiss,
   }) {
     dismiss();
     _sheetKey = GlobalKey<_DragSheetState>();
+    this.onShow = onShow;
+    this.onDismiss = onDismiss;
     _entry = OverlayEntry(
       builder:
           (ctx) => DragSheet(
             key: _sheetKey,
             builder: builder,
             shrinkWrap: shrinkWrap,
-            onDismissed: _removeEntry,
+            onDismissed: () {
+              _removeEntry();
+              if (this.onDismiss != null) this.onDismiss!();
+            },
+            onShow: this.onShow,
             minScale: minScale,
             maxScale: maxScale,
             minRadius: minRadius,
@@ -43,9 +62,17 @@ class DragSheetController {
             gestureFadeDuration: gestureFadeDuration,
             programmaticFadeDuration: programmaticFadeDuration,
             effectDistance: effectDistance,
+            bgOpacity: bgOpacity,
+            swipeVelocityMultiplier: swipeVelocityMultiplier,
+            swipeAccelerationThreshold: swipeAccelerationThreshold,
+            swipeAccelerationMultiplier: swipeAccelerationMultiplier,
+            swipeMinVelocity: swipeMinVelocity,
+            swipeMaxVelocity: swipeMaxVelocity,
+            swipeFriction: swipeFriction,
           ),
     );
     Overlay.of(context).insert(_entry!);
+    if (this.onShow != null) this.onShow!();
   }
 
   void dismiss() {
@@ -63,6 +90,7 @@ class DragSheet extends StatefulWidget {
   final WidgetBuilder builder;
   final bool shrinkWrap;
   final VoidCallback? onDismissed;
+  final VoidCallback? onShow;
 
   // Configurable constants
   final double minScale;
@@ -76,12 +104,22 @@ class DragSheet extends StatefulWidget {
   final Duration gestureFadeDuration;
   final Duration programmaticFadeDuration;
   final double effectDistance;
+  final BgOpacity? bgOpacity;
+
+  // Swipe physics parameters
+  final double swipeVelocityMultiplier;
+  final double swipeAccelerationThreshold;
+  final double swipeAccelerationMultiplier;
+  final double swipeMinVelocity;
+  final double swipeMaxVelocity;
+  final double swipeFriction;
 
   const DragSheet({
     Key? key,
     required this.builder,
     required this.shrinkWrap,
     this.onDismissed,
+    this.onShow,
     this.minScale = 0.75,
     this.maxScale = 1.0,
     this.minRadius = 0.0,
@@ -93,6 +131,13 @@ class DragSheet extends StatefulWidget {
     this.gestureFadeDuration = const Duration(milliseconds: 300),
     this.programmaticFadeDuration = const Duration(milliseconds: 1000),
     this.effectDistance = 120.0,
+    this.bgOpacity,
+    this.swipeVelocityMultiplier = 3.5,
+    this.swipeAccelerationThreshold = 3000,
+    this.swipeAccelerationMultiplier = 6.0,
+    this.swipeMinVelocity = 1800.0,
+    this.swipeMaxVelocity = 5000.0,
+    this.swipeFriction = 0.09,
   }) : super(key: key);
 
   @override
@@ -122,6 +167,10 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
   late double _scaleAtDismiss;
 
   bool _ignoreAllPointers = false;
+
+  // Add these fields to _DragSheetState:
+  Offset? _lastVelocity;
+  DateTime? _lastVelocityTime;
 
   @override
   void initState() {
@@ -201,6 +250,10 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       _scale = _minScale;
       _clipRadius = _minRadius;
     });
+
+    // Track velocity and time for acceleration calculation
+    _lastVelocity = d.delta / (d.sourceTimeStamp?.inMilliseconds.toDouble() ?? 16) * 1000;
+    _lastVelocityTime = DateTime.now();
   }
 
   void _onPanEnd(DragEndDetails d) {
@@ -209,8 +262,30 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     final edgeThreshold = 80.0;
     final size = MediaQuery.of(context).size;
 
+    // Calculate acceleration if possible
+    double acceleration = 0.0;
+    if (_lastVelocity != null && _lastVelocityTime != null) {
+      final timeDiff = DateTime.now().difference(_lastVelocityTime!).inMilliseconds / 1000.0;
+      if (timeDiff > 0) {
+        final velocityDiff = (velocity - _lastVelocity!).distance;
+        acceleration = velocityDiff / timeDiff;
+      }
+    }
+
+    // Use widget's swipe physics parameters
+    double velocityMultiplier = widget.swipeVelocityMultiplier;
+    if (acceleration > widget.swipeAccelerationThreshold) {
+      velocityMultiplier = widget.swipeAccelerationMultiplier;
+    }
+
     if (velocity.distance > threshold) {
-      _animateWithFriction(velocity);
+      _animateWithFriction(
+        velocity,
+        velocityMultiplier: velocityMultiplier,
+        minVelocity: widget.swipeMinVelocity,
+        maxVelocity: widget.swipeMaxVelocity,
+        friction: widget.swipeFriction,
+      );
       return;
     }
 
@@ -229,7 +304,13 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     }
   }
 
-  void _animateWithFriction(Offset velocity) {
+  void _animateWithFriction(
+    Offset velocity, {
+    double velocityMultiplier = 3.5,
+    double minVelocity = 1800.0,
+    double maxVelocity = 5000.0,
+    double friction = 0.09,
+  }) {
     _springTicker?.dispose();
     _springTicker = null;
 
@@ -237,17 +318,13 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     final beginRadius = _clipRadius;
     final beginScale = _scale;
 
-    // Clamp velocity
-    const minVelocity = 1200.0;
-    const maxVelocity = 3500.0;
-    const velocityMultiplier = 2.0;
     double speed = velocity.distance * velocityMultiplier;
     speed = speed.clamp(minVelocity, maxVelocity);
     final direction = velocity.distance == 0 ? Offset(0, 1) : velocity / velocity.distance;
     final boostedVelocity = direction * speed;
 
-    final simX = FrictionSimulation(0.135, begin.dx, boostedVelocity.dx);
-    final simY = FrictionSimulation(0.135, begin.dy, boostedVelocity.dy);
+    final simX = FrictionSimulation(friction, begin.dx, boostedVelocity.dx);
+    final simY = FrictionSimulation(friction, begin.dy, boostedVelocity.dy);
 
     bool fadeStarted = false;
 
@@ -268,7 +345,7 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
         setState(() {
           _ignoreAllPointers = true;
         });
-        _bgOpacityCtrl.duration = widget.gestureFadeDuration; // Use the configured duration!
+        _bgOpacityCtrl.duration = widget.gestureFadeDuration;
         _bgOpacityCtrl.reverse(from: _bgOpacityCtrl.value);
         _bgOpacityCtrl.addStatusListener((status) {
           if (status == AnimationStatus.dismissed && !_isDismissing) {
@@ -365,10 +442,14 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final bgOpacity = widget.bgOpacity ?? BgOpacity.kDefault;
+
     final sheet = ClipRRect(
       borderRadius: BorderRadius.circular(_clipRadius),
       child: Material(
-        color: Colors.white,
+        color: Colors.transparent,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         borderRadius: widget.shrinkWrap ? BorderRadius.vertical(top: Radius.circular(24)) : null,
         child: widget.builder(context),
       ),
@@ -389,31 +470,43 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       child = SlideTransition(position: _exitAnim, child: child);
     }
 
-    return IgnorePointer(
-      ignoring: _ignoreAllPointers,
-      child: Material(
-        color: Colors.transparent,
-        child: Stack(
-          children: [
-            if (_bgOpacity > 0)
-              Positioned.fill(child: ColoredBox(color: Colors.black54.withOpacity(_bgOpacity * widget.maxOpacity))),
-            if (widget.shrinkWrap)
-              Positioned(
+    return Material(
+      color: Colors.transparent,
+      child: Stack(
+        children: [
+          if (_bgOpacity > 0)
+            Positioned.fill(child: ColoredBox(color: bgOpacity.color.withOpacity(_bgOpacity * bgOpacity.opacity))),
+          widget.shrinkWrap
+              ? Positioned(
                 bottom: 0,
                 left: 0,
                 right: 0,
-                child: SizedBox(
-                  width: MediaQuery.of(context).size.width,
-                  child: GestureDetector(onPanUpdate: _onPanUpdate, onPanEnd: _onPanEnd, child: child),
+                child: IgnorePointer(
+                  ignoring: _ignoreAllPointers,
+                  child: SizedBox(
+                    width: MediaQuery.of(context).size.width,
+                    child: GestureDetector(onPanUpdate: _onPanUpdate, onPanEnd: _onPanEnd, child: child),
+                  ),
                 ),
               )
-            else
-              SizedBox.expand(child: GestureDetector(onPanUpdate: _onPanUpdate, onPanEnd: _onPanEnd, child: child)),
-          ],
-        ),
+              : IgnorePointer(
+                ignoring: _ignoreAllPointers,
+                child: SizedBox.expand(
+                  child: GestureDetector(onPanUpdate: _onPanUpdate, onPanEnd: _onPanEnd, child: child),
+                ),
+              ),
+        ],
       ),
     );
   }
 }
 
 final borderRadius = BorderRadius.circular(24);
+
+class BgOpacity {
+  final Color color;
+  final double opacity; // 0.0 to 1.0
+  const BgOpacity({required this.color, this.opacity = 0.5});
+
+  static const BgOpacity kDefault = BgOpacity(color: Colors.black, opacity: 0.5);
+}
