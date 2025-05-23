@@ -10,22 +10,22 @@ Developed because I wanted this for my own app, was familiar with the React Nati
   <tr>
     <td>
       <img
-        src="https://github.com/mattrltrent/random_assets/blob/main/ex-ezgif.com-video-to-gif-converter.gif"
-        alt="abc"
+        src="https://github.com/mattrltrent/random_assets/blob/main/ex-ezgif.com-video-to-gif-converter.gif?raw=true"
+        alt="demo gif 1"
         height="400px"
       />
     </td>
     <td>
       <img
-        src="https://github.com/mattrltrent/random_assets/blob/main/ex2-ezgif.com-video-to-gif-converter-2.gif"
-        alt="abc"
+        src="https://github.com/mattrltrent/random_assets/blob/main/ex2-ezgif.com-video-to-gif-converter-2.gif?raw=true"
+        alt="demo gif 2"
         height="400px"
       />
     </td>
     <td>
       <img
-        src="https://github.com/mattrltrent/random_assets/blob/main/ex3-ezgif.com-video-to-gif-converter.gif"
-        alt="abc"
+        src="https://github.com/mattrltrent/random_assets/blob/main/ex3-ezgif.com-video-to-gif-converter.gif?raw=true"
+        alt="demo gif 3"
         height="400px"
       />
     </td>
@@ -71,31 +71,31 @@ This demo "sign up" [blurry sheet](https://github.com/mattrltrent/dragsheet/blob
     ```
 
 6. If you care about customization, you won't be disapointed. However, the defaults should be solid enough. The main property to know about is `shrinkWrap`. If you want your sheet to shrink to the size of the child you provide it, make this `true`.
-  ```dart
-  void show(
-    BuildContext context,
-    WidgetBuilder builder, {
-    bool shrinkWrap = false,
-    double minScale = 0.85,
-    double maxScale = 1.0,
-    double minRadius = 0.0,
-    double maxRadius = 30.0,
-    double minOpacity = 0.0,
-    double maxOpacity = 0.5,
-    Duration entranceDuration = const Duration(milliseconds: 200),
-    Duration exitDuration = const Duration(milliseconds: 200),
-    Duration gestureFadeDuration = const Duration(milliseconds: 200),
-    Duration programmaticFadeDuration = const Duration(milliseconds: 200),
-    double effectDistance = 220.0,
-    BgOpacity? bgOpacity,
-    double swipeVelocityMultiplier = 2.5,
-    double swipeAccelerationThreshold = 50.0,
-    double swipeAccelerationMultiplier = 12.0,
-    double swipeMinVelocity = 1000.0,
-    double swipeMaxVelocity = 10000.0,
-    double swipeFriction = 0.09,
-    VoidCallback? onShow,
-    VoidCallback? onDismiss,
-    Duration opacityDuration = const Duration(milliseconds: 200),
-  })
-  ```
+    ```dart
+    void show(
+        BuildContext context,
+        WidgetBuilder builder, {
+        bool shrinkWrap = false,
+        double minScale = 0.85,
+        double maxScale = 1.0,
+        double minRadius = 0.0,
+        double maxRadius = 30.0,
+        double minOpacity = 0.0,
+        double maxOpacity = 0.5,
+        Duration entranceDuration = const Duration(milliseconds: 200),
+        Duration exitDuration = const Duration(milliseconds: 200),
+        Duration gestureFadeDuration = const Duration(milliseconds: 200),
+        Duration programmaticFadeDuration = const Duration(milliseconds: 200),
+        double effectDistance = 220.0,
+        BgOpacity? bgOpacity,
+        double swipeVelocityMultiplier = 2.5,
+        double swipeAccelerationThreshold = 50.0,
+        double swipeAccelerationMultiplier = 12.0,
+        double swipeMinVelocity = 1000.0,
+        double swipeMaxVelocity = 10000.0,
+        double swipeFriction = 0.09,
+        VoidCallback? onShow,
+        VoidCallback? onDismiss,
+        Duration opacityDuration = const Duration(milliseconds: 200),
+    })
+    ```
