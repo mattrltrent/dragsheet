@@ -1,21 +1,46 @@
-import 'dart:ui'; // For lerpDouble
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/scheduler.dart';
 
-const Duration kOpacityDuration = Duration(milliseconds: 200); // Opacity animation duration
-
+/// Manages the presentation and dismissal of a [DragSheet].
+///
+/// This controller allows showing a sheet as an overlay entry and dismissing it.
+/// It also provides a way to listen to the sheet's visibility state.
 class DragSheetController extends ChangeNotifier {
   OverlayEntry? _entry;
   GlobalKey<_DragSheetState>? _sheetKey;
 
-  /// Optional callbacks for show/dismiss events
+  /// Optional callback triggered when the sheet becomes fully visible.
   VoidCallback? onShow;
+
+  /// Optional callback triggered when the sheet is fully dismissed.
   VoidCallback? onDismiss;
 
   bool _isOpen = false;
+
+  /// Returns `true` if the sheet is currently presented, `false` otherwise.
   bool get isOpen => _isOpen;
 
+  /// Displays the drag sheet.
+  ///
+  /// [context] is the build context from which to present the sheet.
+  /// [builder] is a widget builder function for the sheet's content.
+  ///
+  /// Optional parameters allow customization of the sheet's appearance and behavior:
+  /// [shrinkWrap] determines if the sheet should only take up necessary vertical space.
+  /// [minScale], [maxScale] control the scaling effect during drag.
+  /// [minRadius], [maxRadius] control the corner radius effect during drag.
+  /// [minOpacity], [maxOpacity] control the background dimming opacity.
+  /// [entranceDuration], [exitDuration] define the animation durations for programmatic show/hide.
+  /// [gestureFadeDuration] is the duration for the background to fade when dismissing via gesture.
+  /// [programmaticFadeDuration] is the duration for the background to fade when dismissing programmatically.
+  /// [effectDistance] is the drag distance over which scaling and radius effects are applied.
+  /// [bgOpacity] customizes the background color and opacity.
+  /// [swipeVelocityMultiplier], [swipeAccelerationThreshold], [swipeAccelerationMultiplier],
+  /// [swipeMinVelocity], [swipeMaxVelocity], [swipeFriction] control swipe gesture physics.
+  /// [onShow], [onDismiss] are callbacks for sheet visibility events.
+  /// [opacityDuration] is the duration for opacity animations, particularly for background and scale-down.
   void show(
     BuildContext context,
     WidgetBuilder builder, {
@@ -33,17 +58,15 @@ class DragSheetController extends ChangeNotifier {
     double effectDistance = 220.0,
     BgOpacity? bgOpacity,
     double swipeVelocityMultiplier = 2.5,
-    double swipeAccelerationThreshold = 50.0, // super low, triggers acceleration easily
-    double swipeAccelerationMultiplier = 12.0, // much higher, speeds up dismiss
+    double swipeAccelerationThreshold = 50.0,
+    double swipeAccelerationMultiplier = 12.0,
     double swipeMinVelocity = 1000.0,
     double swipeMaxVelocity = 10000.0,
     double swipeFriction = 0.09,
     VoidCallback? onShow,
     VoidCallback? onDismiss,
-    Duration opacityDuration = const Duration(milliseconds: 200), // <-- Add this
+    Duration opacityDuration = const Duration(milliseconds: 200),
   }) {
-    // DO NOT CHANGE LINE ABOVE THIS LINE
-    // Ensure previous entry is removed before creating a new one
     if (_entry != null) {
       _entry!.remove();
       _entry = null;
@@ -85,13 +108,14 @@ class DragSheetController extends ChangeNotifier {
             swipeMinVelocity: swipeMinVelocity,
             swipeMaxVelocity: swipeMaxVelocity,
             swipeFriction: swipeFriction,
-            opacityDuration: opacityDuration, // <-- Pass it down
+            opacityDuration: opacityDuration,
           ),
     );
     Overlay.of(context).insert(_entry!);
     if (this.onShow != null) this.onShow!();
   }
 
+  /// Programmatically dismisses the sheet if it is currently open.
   void dismiss() {
     if (_isOpen) {
       _sheetKey?.currentState?.animateDismiss();
@@ -109,36 +133,82 @@ class DragSheetController extends ChangeNotifier {
   }
 }
 
+/// A widget that can be dragged and dismissed, typically used for modal sheets.
+///
+/// It supports gestures for dragging and flinging to dismiss, along with
+/// configurable animations and physics.
 class DragSheet extends StatefulWidget {
+  /// Builds the content of the sheet.
   final WidgetBuilder builder;
+
+  /// If `true`, the sheet will take up only the necessary vertical space for its content.
+  /// If `false`, it will expand to fill available vertical space.
   final bool shrinkWrap;
+
+  /// Called when the sheet has been fully dismissed.
   final VoidCallback? onDismissed;
+
+  /// Called when the sheet has been fully shown.
   final VoidCallback? onShow;
 
-  // Configurable constants
+  /// The minimum scale factor applied to the sheet during drag.
   final double minScale;
+
+  /// The maximum scale factor (typically 1.0 for full size).
   final double maxScale;
+
+  /// The minimum corner radius applied during drag (typically 0.0 for squared corners).
   final double minRadius;
+
+  /// The maximum corner radius applied when the sheet is scaled down.
   final double maxRadius;
+
+  /// The minimum opacity of the background scrim.
   final double minOpacity;
+
+  /// The maximum opacity of the background scrim.
   final double maxOpacity;
+
+  /// Duration of the entrance animation when the sheet is shown.
   final Duration entranceDuration;
+
+  /// Duration of the exit animation when the sheet is dismissed programmatically.
   final Duration exitDuration;
+
+  /// Duration of the background fade when dismissing via a gesture.
   final Duration gestureFadeDuration;
+
+  /// Duration of the background fade when dismissing programmatically.
   final Duration programmaticFadeDuration;
+
+  /// The distance over which drag effects (scale, radius) are interpolated.
   final double effectDistance;
+
+  /// Configuration for the background scrim's color and opacity.
   final BgOpacity? bgOpacity;
 
-  // Swipe physics parameters
+  /// Multiplier for swipe velocity to determine fling strength.
   final double swipeVelocityMultiplier;
+
+  /// Threshold for detecting acceleration in swipe gestures.
   final double swipeAccelerationThreshold;
+
+  /// Multiplier for swipe acceleration to enhance fling speed.
   final double swipeAccelerationMultiplier;
+
+  /// Minimum velocity for a swipe to be considered a fling.
   final double swipeMinVelocity;
+
+  /// Maximum velocity for a swipe fling.
   final double swipeMaxVelocity;
+
+  /// Friction applied to fling animations.
   final double swipeFriction;
 
-  final Duration opacityDuration; // <-- Add this
+  /// Duration for opacity-related animations, such as background fade and scale-down effects.
+  final Duration opacityDuration;
 
+  /// Creates a [DragSheet].
   const DragSheet({
     Key? key,
     required this.builder,
@@ -163,7 +233,7 @@ class DragSheet extends StatefulWidget {
     this.swipeMinVelocity = 1800.0,
     this.swipeMaxVelocity = 5000.0,
     this.swipeFriction = 0.09,
-    this.opacityDuration = const Duration(milliseconds: 200), // <-- Add this
+    this.opacityDuration = const Duration(milliseconds: 200),
   }) : super(key: key);
 
   @override
@@ -188,7 +258,6 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
   double _clipRadius = 0.0;
   Ticker? _springTicker;
 
-  // Add this field:
   AnimationStatusListener? _gravityDismissOpacityListener;
 
   double _minScale = 1.0;
@@ -197,7 +266,6 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
 
   bool _ignoreAllPointers = false;
 
-  // Add these fields to _DragSheetState:
   Offset? _lastVelocity;
   DateTime? _lastVelocityTime;
 
@@ -209,24 +277,18 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     _scaleCtrl.addListener(() {
       if (_isDismissing) {
         setState(() {
-          // Animate from the locked scale to 0
           _scale = lerpDouble(_scaleAtDismiss, 0.0, _scaleCtrl.value)!;
-          // Animate border radius from locked to 50 (fully rounded) as it shrinks
           _clipRadius = lerpDouble(_minRadius, 80.0, _scaleCtrl.value)!;
         });
       }
     });
     _scaleCtrl.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        // DO NOT reset _scale or _clipRadius here!
         widget.onDismissed?.call();
       }
     });
 
-    _bgOpacityCtrl = AnimationController(
-      vsync: this,
-      duration: widget.opacityDuration,
-    ); // <-- Use widget.opacityDuration
+    _bgOpacityCtrl = AnimationController(vsync: this, duration: widget.opacityDuration);
     _bgOpacityAnim = CurvedAnimation(parent: _bgOpacityCtrl, curve: Curves.easeOut);
     _bgOpacityAnim.addListener(() {
       setState(() {
@@ -265,34 +327,28 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     _entranceCtrl.dispose();
     _bgOpacityCtrl.dispose();
     _exitCtrl.dispose();
-    _removeGravityDismissOpacityListener(); // Add this
+    _removeGravityDismissOpacityListener();
     _springTicker?.dispose();
     super.dispose();
   }
 
   void _removeGravityDismissOpacityListener() {
     if (_gravityDismissOpacityListener != null) {
-      if (_bgOpacityCtrl.isAnimating || _bgOpacityCtrl.status != AnimationStatus.dismissed) {
-        // Only remove if the controller is still active and listener might be there.
-        // Check _bgOpacityCtrl.owner != null if more safety needed (controller not disposed)
-      }
-      // Try removing, Flutter's AnimationController is robust to removing non-existent listeners.
+      if (_bgOpacityCtrl.isAnimating || _bgOpacityCtrl.status != AnimationStatus.dismissed) {}
       _bgOpacityCtrl.removeStatusListener(_gravityDismissOpacityListener!);
       _gravityDismissOpacityListener = null;
     }
   }
 
   void _onPanStart(DragStartDetails d) {
-    _cancelSpringTicker(); // Stops physics animation (calls _springTicker?.dispose())
+    _cancelSpringTicker();
     if (_isDismissing) {
-      // If a gesture-based dismiss (fling) was in progress:
-      _bgOpacityCtrl.stop(); // Stop the background fade
-      _removeGravityDismissOpacityListener(); // Remove the specific listener for onDismissed
-      _isDismissing = false; // No longer in a dismiss state initiated by fling
+      _bgOpacityCtrl.stop();
+      _removeGravityDismissOpacityListener();
+      _isDismissing = false;
       setState(() {
         _ignoreAllPointers = false;
-      }); // Allow interaction again
-      // The opacity will be left as is; subsequent _onPanUpdate will adjust it.
+      });
     }
   }
 
@@ -302,12 +358,10 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       _offset += d.delta;
       final dist = _offset.distance.clamp(0, widget.effectDistance);
 
-      // Interpolate scale and radius based on drag distance
       _scale = widget.maxScale - (widget.maxScale - widget.minScale) * (dist / widget.effectDistance);
       _clipRadius = widget.minRadius + (widget.maxRadius - widget.minRadius) * (dist / widget.effectDistance);
     });
 
-    // Track velocity and time for acceleration calculation
     _lastVelocity = d.delta / (d.sourceTimeStamp?.inMilliseconds.toDouble() ?? 16) * 1000;
     _lastVelocityTime = DateTime.now();
   }
@@ -319,10 +373,10 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
 
     final angle = velocity.direction * 180 / 3.1415926535897932;
     final normalizedAngle = (angle + 360) % 360;
-    final isDownward = normalizedAngle >= 45 && normalizedAngle <= 135;
+    final isDismissDirection = normalizedAngle >= 0 && normalizedAngle <= 180;
 
-    if (velocityMagnitude > minDismissVelocity && isDownward) {
-      _animateWithGravity(velocity, acceleration: 8000.0); // try 8000-12000 for a fast whoosh
+    if (velocityMagnitude > minDismissVelocity && isDismissDirection) {
+      _animateWithGravity(velocity, acceleration: 8000.0);
       return;
     }
 
@@ -332,7 +386,7 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
   void _animateWithFriction(
     Offset velocity, {
     double velocityMultiplier = 3.5,
-    double minVelocity = 2500.0, // <-- bump this up!
+    double minVelocity = 2500.0,
     double maxVelocity = 10000.0,
     double friction = 0.09,
   }) {
@@ -344,7 +398,6 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     final beginScale = _scale;
 
     double speed = velocity.distance * velocityMultiplier;
-    // Always use at least minVelocity, even for slow swipes!
     speed = speed < minVelocity ? minVelocity : speed;
     speed = speed.clamp(minVelocity, maxVelocity);
     final direction = velocity.distance == 0 ? Offset(0, 1) : velocity / velocity.distance;
@@ -392,7 +445,6 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     final begin = _offset;
     final end = target;
 
-    // If dismissing, keep scale and radius fixed during the spring out
     final beginRadius = _clipRadius;
     final endRadius = dismiss ? _clipRadius : (target == Offset.zero ? 0.0 : 50.0);
     final beginScale = _scale;
@@ -416,7 +468,6 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
         _scale = lerpDouble(beginScale, endScale, t)!;
       });
 
-      // Only stop when the simulation is "done" (close to target and velocity is low)
       if (sim.isDone(seconds)) {
         _springTicker?.stop();
         _springTicker?.dispose();
@@ -429,7 +480,6 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
           if (end == Offset.zero) {
             _minScale = 1.0;
             _minRadius = 0.0;
-            // Haptic feedback on bounce back
           }
         });
         if (dismiss && !_isDismissing) {
@@ -454,19 +504,23 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     setState(() {
       _ignoreAllPointers = true;
     });
-    final d = duration ?? widget.opacityDuration; // <-- Use widget.opacityDuration as default
+    final d = duration ?? widget.opacityDuration;
     _bgOpacityCtrl.duration = d;
     _scaleCtrl.duration = d;
     _bgOpacityCtrl.reverse(from: _bgOpacityCtrl.value);
     _scaleCtrl.forward(from: 0);
   }
 
+  /// Initiates the programmatic dismissal animation of the sheet.
+  ///
+  /// This involves fading out the background and sliding the sheet off-screen.
+  /// Pointers are ignored during this animation.
   void animateDismiss() async {
     if (!_isDismissing && !_isExiting) {
       _isDismissing = true;
       _isExiting = true;
       setState(() {
-        _ignoreAllPointers = true; // Block interaction during animation
+        _ignoreAllPointers = true;
       });
       _bgOpacityCtrl.duration = widget.programmaticFadeDuration;
       if (_bgOpacityCtrl.value == 0) {
@@ -476,7 +530,7 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       final slide = _exitCtrl.forward();
       await Future.wait([fade, slide]);
       setState(() {
-        _ignoreAllPointers = false; // Allow interaction again
+        _ignoreAllPointers = false;
       });
       widget.onDismissed?.call();
     }
@@ -491,137 +545,72 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
   }
 
   void _animateWithGravity(Offset velocity, {double acceleration = 8000.0}) {
-    _springTicker?.dispose(); // Dispose previous physics ticker
+    _springTicker?.dispose();
     _springTicker = null;
-
-    // If already dismissing via another path, or if this is a re-fling,
-    // ensure old listeners specific to gravity dismiss are cleared.
     _removeGravityDismissOpacityListener();
-
-    _isDismissing = true; // Mark that we are in a dismiss process
+    _isDismissing = true;
     setState(() {
       _ignoreAllPointers = true;
     });
 
-    // START BACKGROUND OPACITY FADE IMMEDIATELY
     _bgOpacityCtrl.duration = widget.gestureFadeDuration;
     _bgOpacityCtrl.reverse(from: _bgOpacityCtrl.value);
-
-    // Setup listener for when this specific fade completes to call onDismissed
     _gravityDismissOpacityListener = (AnimationStatus status) {
       if (status == AnimationStatus.dismissed) {
-        // Only call onDismissed if we are *still* in the dismiss state
-        // initiated by this call to _animateWithGravity.
-        // This check is important if the dismiss was cancelled by _onPanStart.
         if (_isDismissing) {
+          _cancelSpringTicker();
           widget.onDismissed?.call();
-          // _isDismissing will be effectively reset when the controller removes the sheet.
         }
-        _removeGravityDismissOpacityListener(); // Clean up self
+        _removeGravityDismissOpacityListener();
       }
     };
     _bgOpacityCtrl.addStatusListener(_gravityDismissOpacityListener!);
 
-    final begin = _offset;
-    final beginRadius = _clipRadius; // Lock radius during fling
-    final beginScale = _scale; // Lock scale during fling
+    final beginOffset = _offset;
+    final beginRadius = _clipRadius;
+    final beginScale = _scale;
 
-    final direction = velocity.distance == 0 ? Offset(0, 1) : velocity / velocity.distance;
-    const double minVel = 100.0;
+    const double flingBoundaryDistance = 2000.0;
+    final double accelMagnitude = acceleration.abs();
 
-    // --- X-axis Simulation ---
-    double effectiveAccelX = acceleration * direction.dx.sign;
-    if (direction.dx.abs() < 1e-3) effectiveAccelX = 0.0;
+    final double xSign = velocity.dx < 0 ? -1.0 : 1.0;
+    final double ySign = velocity.dy < 0 ? -1.0 : 1.0;
 
-    double currentBeginX = begin.dx;
-    double physicalTargetX;
-    if (effectiveAccelX > 0)
-      physicalTargetX = currentBeginX + 2000.0;
-    else if (effectiveAccelX < 0)
-      physicalTargetX = currentBeginX - 2000.0;
-    else
-      physicalTargetX = currentBeginX;
+    final double simStartX = beginOffset.dx * xSign;
+    final double simVelX = velocity.dx * xSign;
+    final double simAccelX = velocity.dx.abs() < 1e-3 ? 0.0 : accelMagnitude;
 
-    double currentVX = velocity.dx.abs() < minVel ? minVel * direction.dx.sign : velocity.dx;
+    final GravitySimulation simX = GravitySimulation(simAccelX, simStartX, flingBoundaryDistance, simVelX);
 
-    GravitySimulation simX;
-    double xPosMultiplier = 1.0;
+    final double simStartY = beginOffset.dy * ySign;
+    final double simVelY = velocity.dy * ySign;
+    final double simAccelY = velocity.dy.abs() < 1e-3 ? 0.0 : accelMagnitude;
 
-    if (effectiveAccelX == 0.0) {
-      simX = GravitySimulation(0.0, currentBeginX, physicalTargetX, currentVX);
-    } else {
-      double simConsAccel, simConsBegin, simConsEnd, simConsVel;
-      if (physicalTargetX >= currentBeginX) {
-        simConsAccel = effectiveAccelX;
-        simConsBegin = currentBeginX;
-        simConsEnd = physicalTargetX;
-        simConsVel = currentVX;
-        xPosMultiplier = 1.0;
-      } else {
-        simConsAccel = -effectiveAccelX;
-        simConsBegin = -currentBeginX;
-        simConsEnd = -physicalTargetX;
-        simConsVel = -currentVX;
-        xPosMultiplier = -1.0;
-      }
-      simX = GravitySimulation(simConsAccel, simConsBegin, simConsEnd, simConsVel);
-    }
-
-    // --- Y-axis Simulation (similar logic) ---
-    double effectiveAccelY = acceleration * direction.dy.sign;
-    if (direction.dy.abs() < 1e-3) effectiveAccelY = 0.0;
-
-    double currentBeginY = begin.dy;
-    double physicalTargetY;
-    if (effectiveAccelY > 0)
-      physicalTargetY = currentBeginY + 2000.0;
-    else if (effectiveAccelY < 0)
-      physicalTargetY = currentBeginY - 2000.0;
-    else
-      physicalTargetY = currentBeginY;
-
-    double currentVY = velocity.dy.abs() < minVel ? minVel * direction.dy.sign : velocity.dy;
-
-    GravitySimulation simY;
-    double yPosMultiplier = 1.0;
-
-    if (effectiveAccelY == 0.0) {
-      simY = GravitySimulation(0.0, currentBeginY, physicalTargetY, currentVY);
-    } else {
-      double simConsAccel, simConsBegin, simConsEnd, simConsVel;
-      if (physicalTargetY >= currentBeginY) {
-        simConsAccel = effectiveAccelY;
-        simConsBegin = currentBeginY;
-        simConsEnd = physicalTargetY;
-        simConsVel = currentVY;
-        yPosMultiplier = 1.0;
-      } else {
-        simConsAccel = -effectiveAccelY;
-        simConsBegin = -currentBeginY;
-        simConsEnd = -physicalTargetY;
-        simConsVel = -currentVY;
-        yPosMultiplier = -1.0;
-      }
-      simY = GravitySimulation(simConsAccel, simConsBegin, simConsEnd, simConsVel);
-    }
+    final GravitySimulation simY = GravitySimulation(simAccelY, simStartY, flingBoundaryDistance, simVelY);
 
     _springTicker = createTicker((elapsed) {
       final t = elapsed.inMilliseconds / 1000.0;
-      // Check if simulations are valid before calling x(t)
-      // This is a safeguard, though the logic above should prevent invalid states.
-      if (simX == null || simY == null) return;
 
-      final x = xPosMultiplier * simX.x(t);
-      final y = yPosMultiplier * simY.x(t);
+      final double currentSimX = simX.x(t);
+      final double currentSimY = simY.x(t);
+
+      final newOffsetX = currentSimX * xSign;
+      final newOffsetY = currentSimY * ySign;
+
+      final screenSize = MediaQuery.of(context).size;
+      if ((newOffsetX.abs() > screenSize.width * 1.5 && simAccelX != 0) ||
+          (newOffsetY.abs() > screenSize.height * 1.5 && simAccelY != 0)) {
+        if (!_bgOpacityCtrl.isAnimating && _bgOpacityCtrl.status == AnimationStatus.dismissed) {
+          _cancelSpringTicker();
+          return;
+        }
+      }
 
       setState(() {
-        _offset = Offset(x, y);
+        _offset = Offset(newOffsetX, newOffsetY);
         _clipRadius = beginRadius;
         _scale = beginScale;
       });
-
-      // The onDismissed callback is now handled by the _gravityDismissOpacityListener
-      // No need for fadeStarted or explicit onDismissed calls from the ticker here.
     });
     _springTicker?.start();
   }
@@ -649,7 +638,6 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       child = Transform.translate(offset: _offset, child: SizedBox.expand(child: child));
     }
 
-    // Animate in or out
     if (!_didEntrance) {
       child = SlideTransition(position: _entranceAnim, child: child);
     } else if (_isExiting) {
@@ -698,12 +686,22 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
   }
 }
 
+/// Defines the default border radius for certain sheet elements.
 final borderRadius = BorderRadius.circular(24);
 
+/// Configuration for the background scrim of the [DragSheet].
+///
+/// Allows specifying a [color] and an [opacity] level for the scrim.
 class BgOpacity {
+  /// The color of the background scrim.
   final Color color;
-  final double opacity; // 0.0 to 1.0
+
+  /// The opacity of the background scrim, ranging from 0.0 (transparent) to 1.0 (opaque).
+  final double opacity;
+
+  /// Creates a [BgOpacity] configuration.
   const BgOpacity({required this.color, this.opacity = 0.5});
 
+  /// A default [BgOpacity] configuration with black color and 0.5 opacity.
   static const BgOpacity kDefault = BgOpacity(color: Colors.black, opacity: 0.5);
 }
