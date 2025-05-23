@@ -42,6 +42,7 @@ class DragSheetController extends ChangeNotifier {
     VoidCallback? onDismiss,
     Duration opacityDuration = const Duration(milliseconds: 200), // <-- Add this
   }) {
+    // DO NOT CHANGE LINE ABOVE THIS LINE
     // Ensure previous entry is removed before creating a new one
     if (_entry != null) {
       _entry!.remove();
@@ -187,6 +188,9 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
   double _clipRadius = 0.0;
   Ticker? _springTicker;
 
+  // Add this field:
+  AnimationStatusListener? _gravityDismissOpacityListener;
+
   double _minScale = 1.0;
   double _minRadius = 0.0;
   late double _scaleAtDismiss;
@@ -261,13 +265,35 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     _entranceCtrl.dispose();
     _bgOpacityCtrl.dispose();
     _exitCtrl.dispose();
+    _removeGravityDismissOpacityListener(); // Add this
     _springTicker?.dispose();
     super.dispose();
   }
 
+  void _removeGravityDismissOpacityListener() {
+    if (_gravityDismissOpacityListener != null) {
+      if (_bgOpacityCtrl.isAnimating || _bgOpacityCtrl.status != AnimationStatus.dismissed) {
+        // Only remove if the controller is still active and listener might be there.
+        // Check _bgOpacityCtrl.owner != null if more safety needed (controller not disposed)
+      }
+      // Try removing, Flutter's AnimationController is robust to removing non-existent listeners.
+      _bgOpacityCtrl.removeStatusListener(_gravityDismissOpacityListener!);
+      _gravityDismissOpacityListener = null;
+    }
+  }
+
   void _onPanStart(DragStartDetails d) {
-    _cancelSpringTicker();
-    // No need to set _clipRadius or _scale here!
+    _cancelSpringTicker(); // Stops physics animation (calls _springTicker?.dispose())
+    if (_isDismissing) {
+      // If a gesture-based dismiss (fling) was in progress:
+      _bgOpacityCtrl.stop(); // Stop the background fade
+      _removeGravityDismissOpacityListener(); // Remove the specific listener for onDismissed
+      _isDismissing = false; // No longer in a dismiss state initiated by fling
+      setState(() {
+        _ignoreAllPointers = false;
+      }); // Allow interaction again
+      // The opacity will be left as is; subsequent _onPanUpdate will adjust it.
+    }
   }
 
   void _onPanUpdate(DragUpdateDetails d) {
@@ -464,55 +490,138 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     }
   }
 
-  void _animateWithGravity(
-    Offset velocity, {
-    double acceleration = 8000.0, // pixels per second squared, tweak for desired "whoosh"
-  }) {
-    _springTicker?.dispose();
+  void _animateWithGravity(Offset velocity, {double acceleration = 8000.0}) {
+    _springTicker?.dispose(); // Dispose previous physics ticker
     _springTicker = null;
 
+    // If already dismissing via another path, or if this is a re-fling,
+    // ensure old listeners specific to gravity dismiss are cleared.
+    _removeGravityDismissOpacityListener();
+
+    _isDismissing = true; // Mark that we are in a dismiss process
+    setState(() {
+      _ignoreAllPointers = true;
+    });
+
+    // START BACKGROUND OPACITY FADE IMMEDIATELY
+    _bgOpacityCtrl.duration = widget.gestureFadeDuration;
+    _bgOpacityCtrl.reverse(from: _bgOpacityCtrl.value);
+
+    // Setup listener for when this specific fade completes to call onDismissed
+    _gravityDismissOpacityListener = (AnimationStatus status) {
+      if (status == AnimationStatus.dismissed) {
+        // Only call onDismissed if we are *still* in the dismiss state
+        // initiated by this call to _animateWithGravity.
+        // This check is important if the dismiss was cancelled by _onPanStart.
+        if (_isDismissing) {
+          widget.onDismissed?.call();
+          // _isDismissing will be effectively reset when the controller removes the sheet.
+        }
+        _removeGravityDismissOpacityListener(); // Clean up self
+      }
+    };
+    _bgOpacityCtrl.addStatusListener(_gravityDismissOpacityListener!);
+
     final begin = _offset;
-    final beginRadius = _clipRadius;
-    final beginScale = _scale;
+    final beginRadius = _clipRadius; // Lock radius during fling
+    final beginScale = _scale; // Lock scale during fling
 
-    // Always accelerate downward, regardless of swipe speed
-    final direction = velocity.dy >= 0 ? Offset(0, 1) : Offset(0, -1);
+    final direction = velocity.distance == 0 ? Offset(0, 1) : velocity / velocity.distance;
+    const double minVel = 100.0;
 
-    // Use the current offset as the starting position
-    final simY = GravitySimulation(
-      acceleration,
-      begin.dy,
-      2000, // target far offscreen
-      velocity.dy.abs() < 100 ? 100.0 : velocity.dy, // start with at least a little velocity
-    );
+    // --- X-axis Simulation ---
+    double effectiveAccelX = acceleration * direction.dx.sign;
+    if (direction.dx.abs() < 1e-3) effectiveAccelX = 0.0;
 
-    bool fadeStarted = false;
+    double currentBeginX = begin.dx;
+    double physicalTargetX;
+    if (effectiveAccelX > 0)
+      physicalTargetX = currentBeginX + 2000.0;
+    else if (effectiveAccelX < 0)
+      physicalTargetX = currentBeginX - 2000.0;
+    else
+      physicalTargetX = currentBeginX;
+
+    double currentVX = velocity.dx.abs() < minVel ? minVel * direction.dx.sign : velocity.dx;
+
+    GravitySimulation simX;
+    double xPosMultiplier = 1.0;
+
+    if (effectiveAccelX == 0.0) {
+      simX = GravitySimulation(0.0, currentBeginX, physicalTargetX, currentVX);
+    } else {
+      double simConsAccel, simConsBegin, simConsEnd, simConsVel;
+      if (physicalTargetX >= currentBeginX) {
+        simConsAccel = effectiveAccelX;
+        simConsBegin = currentBeginX;
+        simConsEnd = physicalTargetX;
+        simConsVel = currentVX;
+        xPosMultiplier = 1.0;
+      } else {
+        simConsAccel = -effectiveAccelX;
+        simConsBegin = -currentBeginX;
+        simConsEnd = -physicalTargetX;
+        simConsVel = -currentVX;
+        xPosMultiplier = -1.0;
+      }
+      simX = GravitySimulation(simConsAccel, simConsBegin, simConsEnd, simConsVel);
+    }
+
+    // --- Y-axis Simulation (similar logic) ---
+    double effectiveAccelY = acceleration * direction.dy.sign;
+    if (direction.dy.abs() < 1e-3) effectiveAccelY = 0.0;
+
+    double currentBeginY = begin.dy;
+    double physicalTargetY;
+    if (effectiveAccelY > 0)
+      physicalTargetY = currentBeginY + 2000.0;
+    else if (effectiveAccelY < 0)
+      physicalTargetY = currentBeginY - 2000.0;
+    else
+      physicalTargetY = currentBeginY;
+
+    double currentVY = velocity.dy.abs() < minVel ? minVel * direction.dy.sign : velocity.dy;
+
+    GravitySimulation simY;
+    double yPosMultiplier = 1.0;
+
+    if (effectiveAccelY == 0.0) {
+      simY = GravitySimulation(0.0, currentBeginY, physicalTargetY, currentVY);
+    } else {
+      double simConsAccel, simConsBegin, simConsEnd, simConsVel;
+      if (physicalTargetY >= currentBeginY) {
+        simConsAccel = effectiveAccelY;
+        simConsBegin = currentBeginY;
+        simConsEnd = physicalTargetY;
+        simConsVel = currentVY;
+        yPosMultiplier = 1.0;
+      } else {
+        simConsAccel = -effectiveAccelY;
+        simConsBegin = -currentBeginY;
+        simConsEnd = -physicalTargetY;
+        simConsVel = -currentVY;
+        yPosMultiplier = -1.0;
+      }
+      simY = GravitySimulation(simConsAccel, simConsBegin, simConsEnd, simConsVel);
+    }
 
     _springTicker = createTicker((elapsed) {
       final t = elapsed.inMilliseconds / 1000.0;
-      final y = simY.x(t);
+      // Check if simulations are valid before calling x(t)
+      // This is a safeguard, though the logic above should prevent invalid states.
+      if (simX == null || simY == null) return;
+
+      final x = xPosMultiplier * simX.x(t);
+      final y = yPosMultiplier * simY.x(t);
 
       setState(() {
-        _offset = Offset(begin.dx, y);
+        _offset = Offset(x, y);
         _clipRadius = beginRadius;
         _scale = beginScale;
       });
 
-      final size = MediaQuery.of(context).size;
-      if (!fadeStarted && (y.abs() > size.height * 0.7)) {
-        fadeStarted = true;
-        setState(() {
-          _ignoreAllPointers = true;
-        });
-        _bgOpacityCtrl.duration = widget.gestureFadeDuration;
-        _bgOpacityCtrl.reverse(from: _bgOpacityCtrl.value);
-        _bgOpacityCtrl.addStatusListener((status) {
-          if (status == AnimationStatus.dismissed && !_isDismissing) {
-            _isDismissing = true;
-            widget.onDismissed?.call();
-          }
-        });
-      }
+      // The onDismissed callback is now handled by the _gravityDismissOpacityListener
+      // No need for fadeStarted or explicit onDismissed calls from the ticker here.
     });
     _springTicker?.start();
   }
