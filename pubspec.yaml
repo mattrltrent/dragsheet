@@ -1,6 +1,6 @@
 name: dragsheet
-description: Physics-y, bouncy sheet & modal for Flutter — built to fill a gap I hit in my own app.
-version: 0.0.3
+description: Physics-y, bouncy, draggable sheet & modal for Flutter. Built to fill a gap I hit in my own app.
+version: 0.0.4
 homepage: https://matthewtrent.me
 repository: https://github.com/mattrltrent/dragsheet
 issue_tracker: https://github.com/mattrltrent/dragsheet/issues

@@ -57,10 +57,12 @@ class DragSheetController extends ChangeNotifier {
   /// [onShow], [onDismiss] are callbacks for sheet visibility events.
   /// [opacityDuration] is the duration for opacity animations, particularly for background and scale-down.
   /// [applyBorderRadius] specifies which corners of the sheet should have a border radius.
+  /// [closeOnShrinkWrapTap] if true (the default), and shrinkWrap is also true, tapping on the area outside the sheet content (but within its bottom-aligned container) will dismiss the sheet.
   void show(
     BuildContext context,
     WidgetBuilder builder, {
     bool shrinkWrap = false,
+    bool closeOnShrinkWrapTap = true,
     double minScale = 0.85,
     double maxScale = 1.0,
     double minRadius = 0.0,
@@ -102,6 +104,7 @@ class DragSheetController extends ChangeNotifier {
             key: _sheetKey,
             builder: builder,
             shrinkWrap: shrinkWrap,
+            closeOnShrinkWrapTap: closeOnShrinkWrapTap,
             onDismissed: () {
               _removeEntry();
               if (this.onDismiss != null) this.onDismiss!();
@@ -229,6 +232,11 @@ class DragSheet extends StatefulWidget {
   /// Specifies which corners of the sheet should have a border radius.
   final ApplyBorderRadius applyBorderRadius;
 
+  /// If `true` and [shrinkWrap] is also `true`, tapping the area outside
+  /// the sheet content (but within its bottom-aligned container) dismisses the sheet.
+  /// Defaults to `true`.
+  final bool closeOnShrinkWrapTap;
+
   /// Creates a [DragSheet].
   const DragSheet({
     super.key,
@@ -256,6 +264,7 @@ class DragSheet extends StatefulWidget {
     this.swipeFriction = 0.09,
     this.opacityDuration = const Duration(milliseconds: 200),
     this.applyBorderRadius = ApplyBorderRadius.toTop,
+    this.closeOnShrinkWrapTap = true,
   });
 
   @override
@@ -290,14 +299,8 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _scaleCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
+    _scaleCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
     _scaleCtrl.addListener(() {
       if (_isDismissing) {
         setState(() {
@@ -312,24 +315,15 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       }
     });
 
-    _bgOpacityCtrl = AnimationController(
-      vsync: this,
-      duration: widget.opacityDuration,
-    );
-    _bgOpacityAnim = CurvedAnimation(
-      parent: _bgOpacityCtrl,
-      curve: Curves.easeOut,
-    );
+    _bgOpacityCtrl = AnimationController(vsync: this, duration: widget.opacityDuration);
+    _bgOpacityAnim = CurvedAnimation(parent: _bgOpacityCtrl, curve: Curves.easeOut);
     _bgOpacityAnim.addListener(() {
       setState(() {
         _bgOpacity = _bgOpacityAnim.value;
       });
     });
 
-    _entranceCtrl = AnimationController(
-      vsync: this,
-      duration: widget.entranceDuration,
-    );
+    _entranceCtrl = AnimationController(vsync: this, duration: widget.entranceDuration);
     _entranceAnim = Tween<Offset>(
       begin: Offset(0, 1),
       end: Offset.zero,
@@ -367,8 +361,7 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
 
   void _removeGravityDismissOpacityListener() {
     if (_gravityDismissOpacityListener != null) {
-      if (_bgOpacityCtrl.isAnimating ||
-          _bgOpacityCtrl.status != AnimationStatus.dismissed) {}
+      if (_bgOpacityCtrl.isAnimating || _bgOpacityCtrl.status != AnimationStatus.dismissed) {}
       _bgOpacityCtrl.removeStatusListener(_gravityDismissOpacityListener!);
       _gravityDismissOpacityListener = null;
     }
@@ -392,13 +385,8 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       _offset += d.delta;
       final dist = _offset.distance.clamp(0, widget.effectDistance);
 
-      _scale =
-          widget.maxScale -
-          (widget.maxScale - widget.minScale) * (dist / widget.effectDistance);
-      _clipRadius =
-          widget.minRadius +
-          (widget.maxRadius - widget.minRadius) *
-              (dist / widget.effectDistance);
+      _scale = widget.maxScale - (widget.maxScale - widget.minScale) * (dist / widget.effectDistance);
+      _clipRadius = widget.minRadius + (widget.maxRadius - widget.minRadius) * (dist / widget.effectDistance);
     });
   }
 
@@ -427,8 +415,7 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     final end = target;
 
     final beginRadius = _clipRadius;
-    final endRadius =
-        dismiss ? _clipRadius : (target == Offset.zero ? 0.0 : 50.0);
+    final endRadius = dismiss ? _clipRadius : (target == Offset.zero ? 0.0 : 50.0);
     final beginScale = _scale;
     final endScale = dismiss ? _scale : (target == Offset.zero ? 1.0 : 0.75);
 
@@ -561,23 +548,13 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     final double simVelX = velocity.dx * xSign;
     final double simAccelX = velocity.dx.abs() < 1e-3 ? 0.0 : accelMagnitude;
 
-    final GravitySimulation simX = GravitySimulation(
-      simAccelX,
-      simStartX,
-      flingBoundaryDistance,
-      simVelX,
-    );
+    final GravitySimulation simX = GravitySimulation(simAccelX, simStartX, flingBoundaryDistance, simVelX);
 
     final double simStartY = beginOffset.dy * ySign;
     final double simVelY = velocity.dy * ySign;
     final double simAccelY = velocity.dy.abs() < 1e-3 ? 0.0 : accelMagnitude;
 
-    final GravitySimulation simY = GravitySimulation(
-      simAccelY,
-      simStartY,
-      flingBoundaryDistance,
-      simVelY,
-    );
+    final GravitySimulation simY = GravitySimulation(simAccelY, simStartY, flingBoundaryDistance, simVelY);
 
     _springTicker = createTicker((elapsed) {
       final t = elapsed.inMilliseconds / 1000.0;
@@ -591,8 +568,7 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
       final screenSize = MediaQuery.of(context).size;
       if ((newOffsetX.abs() > screenSize.width * 1.5 && simAccelX != 0) ||
           (newOffsetY.abs() > screenSize.height * 1.5 && simAccelY != 0)) {
-        if (!_bgOpacityCtrl.isAnimating &&
-            _bgOpacityCtrl.status == AnimationStatus.dismissed) {
+        if (!_bgOpacityCtrl.isAnimating && _bgOpacityCtrl.status == AnimationStatus.dismissed) {
           _cancelSpringTicker();
           return;
         }
@@ -614,14 +590,10 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     BorderRadius? effectiveBorderRadius;
     switch (widget.applyBorderRadius) {
       case ApplyBorderRadius.toTop:
-        effectiveBorderRadius = BorderRadius.vertical(
-          top: Radius.circular(_clipRadius),
-        );
+        effectiveBorderRadius = BorderRadius.vertical(top: Radius.circular(_clipRadius));
         break;
       case ApplyBorderRadius.toBottom:
-        effectiveBorderRadius = BorderRadius.vertical(
-          bottom: Radius.circular(_clipRadius),
-        );
+        effectiveBorderRadius = BorderRadius.vertical(bottom: Radius.circular(_clipRadius));
         break;
       case ApplyBorderRadius.toBoth:
         effectiveBorderRadius = BorderRadius.circular(_clipRadius);
@@ -638,11 +610,8 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         borderRadius:
-            widget.shrinkWrap &&
-                    widget.applyBorderRadius == ApplyBorderRadius.toTop
-                ? BorderRadius.vertical(
-                  top: Radius.circular(24),
-                ) // This might need adjustment based on desired behavior
+            widget.shrinkWrap && widget.applyBorderRadius == ApplyBorderRadius.toTop
+                ? BorderRadius.vertical(top: Radius.circular(24))
                 : null,
         child: widget.builder(context),
       ),
@@ -651,21 +620,43 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
     Widget child = Transform.scale(scale: _scale, child: sheet);
 
     if (widget.shrinkWrap) {
-      child = Align(
-        alignment: Alignment.bottomCenter,
-        child: Transform.translate(offset: _offset, child: child),
-      );
+      child = Align(alignment: Alignment.bottomCenter, child: Transform.translate(offset: _offset, child: child));
     } else {
-      child = Transform.translate(
-        offset: _offset,
-        child: SizedBox.expand(child: child),
-      );
+      child = Transform.translate(offset: _offset, child: SizedBox.expand(child: child));
     }
 
     if (!_didEntrance) {
       child = SlideTransition(position: _entranceAnim, child: child);
     } else if (_isExiting) {
       child = SlideTransition(position: _exitAnim, child: child);
+    }
+
+    Widget sheetWithGestures;
+    if (widget.shrinkWrap) {
+      // Simplified: The 'child' is already aligned. Position it and wrap with pan gestures.
+      sheetWithGestures = Positioned(
+        bottom: 0,
+        left: 0,
+        right: 0,
+        child: GestureDetector(
+          onPanStart: _onPanStart,
+          onPanUpdate: _onPanUpdate,
+          onPanEnd: _onPanEnd,
+          onTapDown: (_) => _cancelSpringTicker(),
+          child: child,
+        ),
+      );
+    } else {
+      // Non-shrinkWrap case: The 'child' is already expanded. Wrap with pan gestures.
+      sheetWithGestures = SizedBox.expand(
+        child: GestureDetector(
+          onPanStart: _onPanStart,
+          onPanUpdate: _onPanUpdate,
+          onPanEnd: _onPanEnd,
+          onTapDown: (_) => _cancelSpringTicker(),
+          child: child,
+        ),
+      );
     }
 
     return IgnorePointer(
@@ -676,44 +667,29 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
         surfaceTintColor: Colors.transparent,
         child: Stack(
           children: [
-            if (_bgOpacity > 0 &&
-                bgOpacity.opacity > 0 &&
-                bgOpacity.color.a > 0)
+            // Background Scrim
+            if (_bgOpacity > 0 && bgOpacity.opacity > 0 && bgOpacity.color.a > 0)
               Positioned.fill(
                 child: ColoredBox(
-                  color: bgOpacity.color.withAlpha(
-                    (255 * _bgOpacity * bgOpacity.opacity).round().clamp(
-                      0,
-                      255,
-                    ),
-                  ),
+                  color: bgOpacity.color.withAlpha((255 * _bgOpacity * bgOpacity.opacity).round().clamp(0, 255)),
                 ),
               ),
-            widget.shrinkWrap
-                ? Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: SizedBox(
-                    width: MediaQuery.of(context).size.width,
-                    child: GestureDetector(
-                      onPanStart: _onPanStart,
-                      onPanUpdate: _onPanUpdate,
-                      onPanEnd: _onPanEnd,
-                      onTapDown: (_) => _cancelSpringTicker(),
-                      child: child,
-                    ),
-                  ),
-                )
-                : SizedBox.expand(
-                  child: GestureDetector(
-                    onPanStart: _onPanStart,
-                    onPanUpdate: _onPanUpdate,
-                    onPanEnd: _onPanEnd,
-                    onTapDown: (_) => _cancelSpringTicker(),
-                    child: child,
-                  ),
+
+            // Full-screen tap detector for shrinkWrap && closeOnShrinkWrapTap
+            // Placed here, it's behind sheetWithGestures.
+            if (widget.shrinkWrap && widget.closeOnShrinkWrapTap)
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () {
+                    animateDismiss();
+                  },
+                  behavior: HitTestBehavior.translucent, // Allows sheet gestures to take precedence
+                  child: Container(color: Colors.transparent), // Ensures the GestureDetector is hit-testable
                 ),
+              ),
+
+            // The actual sheet content with its drag/pan gestures
+            sheetWithGestures,
           ],
         ),
       ),
@@ -738,8 +714,5 @@ class BgOpacity {
   const BgOpacity({required this.color, this.opacity = 0.5});
 
   /// A default [BgOpacity] configuration with black color and 0.5 opacity.
-  static const BgOpacity kDefault = BgOpacity(
-    color: Colors.black,
-    opacity: 0.5,
-  );
+  static const BgOpacity kDefault = BgOpacity(color: Colors.black, opacity: 0.5);
 }
