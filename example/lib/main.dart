@@ -95,11 +95,9 @@ class _DemoState extends State<Demo> {
                                 isFullScreen: true,
                               ),
                               maxRadius: 40,
-                              bgOpacity: BgOpacity(
-                                color: Colors.black.withOpacity(0.5),
-                              ),
                               onShow: () => HapticFeedback.lightImpact(),
                               onDismiss: () => HapticFeedback.lightImpact(),
+                              applyBorderRadius: ApplyBorderRadius.toBottom,
                             ),
                         child: const Text("Show"),
                       ),

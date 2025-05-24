@@ -3,6 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/scheduler.dart';
 
+/// Defines which corners of the sheet should have a border radius.
+enum ApplyBorderRadius {
+  /// Apply border radius to the top corners.
+  toTop,
+
+  /// Apply border radius to the bottom corners.
+  toBottom,
+
+  /// Apply border radius to all corners.
+  toBoth,
+
+  /// No border radius will be applied.
+  none,
+}
+
 /// Manages the presentation and dismissal of a [DragSheet].
 ///
 /// This controller allows showing a sheet as an overlay entry and dismissing it.
@@ -41,6 +56,7 @@ class DragSheetController extends ChangeNotifier {
   /// [swipeMinVelocity], [swipeMaxVelocity], [swipeFriction] control swipe gesture physics.
   /// [onShow], [onDismiss] are callbacks for sheet visibility events.
   /// [opacityDuration] is the duration for opacity animations, particularly for background and scale-down.
+  /// [applyBorderRadius] specifies which corners of the sheet should have a border radius.
   void show(
     BuildContext context,
     WidgetBuilder builder, {
@@ -66,6 +82,7 @@ class DragSheetController extends ChangeNotifier {
     VoidCallback? onShow,
     VoidCallback? onDismiss,
     Duration opacityDuration = const Duration(milliseconds: 200),
+    ApplyBorderRadius applyBorderRadius = ApplyBorderRadius.toTop,
   }) {
     if (_entry != null) {
       _entry!.remove();
@@ -109,6 +126,7 @@ class DragSheetController extends ChangeNotifier {
             swipeMaxVelocity: swipeMaxVelocity,
             swipeFriction: swipeFriction,
             opacityDuration: opacityDuration,
+            applyBorderRadius: applyBorderRadius,
           ),
     );
     Overlay.of(context).insert(_entry!);
@@ -208,6 +226,9 @@ class DragSheet extends StatefulWidget {
   /// Duration for opacity-related animations, such as background fade and scale-down effects.
   final Duration opacityDuration;
 
+  /// Specifies which corners of the sheet should have a border radius.
+  final ApplyBorderRadius applyBorderRadius;
+
   /// Creates a [DragSheet].
   const DragSheet({
     super.key,
@@ -234,6 +255,7 @@ class DragSheet extends StatefulWidget {
     this.swipeMaxVelocity = 5000.0,
     this.swipeFriction = 0.09,
     this.opacityDuration = const Duration(milliseconds: 200),
+    this.applyBorderRadius = ApplyBorderRadius.toTop,
   });
 
   @override
@@ -589,15 +611,38 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final bgOpacity = widget.bgOpacity ?? BgOpacity.kDefault;
 
+    BorderRadius? effectiveBorderRadius;
+    switch (widget.applyBorderRadius) {
+      case ApplyBorderRadius.toTop:
+        effectiveBorderRadius = BorderRadius.vertical(
+          top: Radius.circular(_clipRadius),
+        );
+        break;
+      case ApplyBorderRadius.toBottom:
+        effectiveBorderRadius = BorderRadius.vertical(
+          bottom: Radius.circular(_clipRadius),
+        );
+        break;
+      case ApplyBorderRadius.toBoth:
+        effectiveBorderRadius = BorderRadius.circular(_clipRadius);
+        break;
+      case ApplyBorderRadius.none:
+        effectiveBorderRadius = BorderRadius.zero;
+        break;
+    }
+
     final sheet = ClipRRect(
-      borderRadius: BorderRadius.circular(_clipRadius),
+      borderRadius: effectiveBorderRadius,
       child: Material(
         color: Colors.transparent,
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         borderRadius:
-            widget.shrinkWrap
-                ? BorderRadius.vertical(top: Radius.circular(24))
+            widget.shrinkWrap &&
+                    widget.applyBorderRadius == ApplyBorderRadius.toTop
+                ? BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ) // This might need adjustment based on desired behavior
                 : null,
         child: widget.builder(context),
       ),
@@ -633,7 +678,7 @@ class _DragSheetState extends State<DragSheet> with TickerProviderStateMixin {
           children: [
             if (_bgOpacity > 0 &&
                 bgOpacity.opacity > 0 &&
-                bgOpacity.color.opacity > 0)
+                bgOpacity.color.a > 0)
               Positioned.fill(
                 child: ColoredBox(
                   color: bgOpacity.color.withAlpha(
@@ -694,7 +739,7 @@ class BgOpacity {
 
   /// A default [BgOpacity] configuration with black color and 0.5 opacity.
   static const BgOpacity kDefault = BgOpacity(
-    color: Color.fromRGBO(0, 0, 0, 0.5), // Black with 0.5 opacity
-    opacity: 1.0, // Opacity is now part of the color
+    color: Colors.black,
+    opacity: 0.5,
   );
 }
